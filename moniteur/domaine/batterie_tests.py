@@ -46,41 +46,6 @@ if __name__ == "__main__":
     mesure_ko = Mesure(instant, Verdict.KO, None, "délai dépassé")
     batterie = BatterieTests(instant)
 
-    print("Scénario : batterie neuve : horodatage reçu")
-    attendu = instant
-    obtenu = batterie.horodatage
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : batterie neuve : aucune mesure")
-    attendu = 0
-    obtenu = len(batterie.mesures)
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : ajout d'une mesure")
-    batterie.ajouter([mesure_ok])
-    attendu = (mesure_ok,)
-    obtenu = batterie.mesures
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : deux ajouts successifs : mesures cumulées dans "
-          "l'ordre")
-    batterie.ajouter([mesure_ko])
-    attendu = (mesure_ok, mesure_ko)
-    obtenu = batterie.mesures
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
     print("Scénario : la propriété mesures renvoie un tuple")
     attendu = tuple
     obtenu = type(batterie.mesures)

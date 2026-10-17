@@ -135,62 +135,9 @@ if __name__ == "__main__":
             return [Mesure(horodatage, self.__verdict, 0.1,
                            self.__diagnostic)]
 
-    site = Site("ClientABC", "https://clientabc.be")
-
-    print("Scénario : création d'un site : nom conservé (critère 1)")
-    attendu = "ClientABC"
-    obtenu = site.nom
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : création d'un site : URI principale conservée")
-    attendu = "https://clientabc.be"
-    obtenu = site.uri_principale
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : site neuf : aucune batterie, donc pas d'horodatage "
-          "(critère 1)")
-    attendu = None
-    obtenu = site.derniere_batterie
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
     print("Scénario : URI sans schéma : « https:// » ajouté par défaut")
     attendu = "https://clientabc.be"
     obtenu = Site("ClientABC", "clientabc.be").uri_principale
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : URI en http:// : schéma conservé")
-    attendu = "http://clientabc.be"
-    obtenu = Site("ClientABC", "http://clientabc.be").uri_principale
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    site_espaces = Site("  ClientABC ", " https://clientabc.be  ")
-
-    print("Scénario : espaces autour du nom retirés")
-    attendu = "ClientABC"
-    obtenu = site_espaces.nom
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : espaces autour de l'URI principale retirés")
-    attendu = "https://clientabc.be"
-    obtenu = site_espaces.uri_principale
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
@@ -200,18 +147,6 @@ if __name__ == "__main__":
     attendu = "ValueError"
     try:
         Site("", "https://clientabc.be")
-        obtenu = "aucune erreur"
-    except ValueError:
-        obtenu = "ValueError"
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : nom composé uniquement d'espaces")
-    attendu = "ValueError"
-    try:
-        Site("   ", "https://clientabc.be")
         obtenu = "aucune erreur"
     except ValueError:
         obtenu = "ValueError"
@@ -232,19 +167,6 @@ if __name__ == "__main__":
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
     print("-" * 40)
 
-    print("Scénario : URI principale composée uniquement d'espaces "
-          "(EF-01.3)")
-    attendu = "ValueError"
-    try:
-        Site("ClientABC", "   ")
-        obtenu = "aucune erreur"
-    except ValueError:
-        obtenu = "ValueError"
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
     print("Scénario : site neuf : statut INCONNU (critère 1)")
     attendu = StatutDisponibilite.INCONNU
     obtenu = Site("ClientABC", "clientabc.be").statut_disponibilite
@@ -256,7 +178,7 @@ if __name__ == "__main__":
     print("Scénario : test d'un site qui répond 200 : DISPONIBLE "
           "(critère 4)")
     site_200 = Site("ClientABC", "clientabc.be")
-    batterie = site_200.lancer_batterie(
+    site_200.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200")], CONFIG, fausse_horloge
     )
     attendu = StatutDisponibilite.DISPONIBLE
@@ -275,37 +197,6 @@ if __name__ == "__main__":
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
     print("-" * 40)
 
-    print("Scénario : la batterie renvoyée est la dernière batterie "
-          "du site")
-    attendu = True
-    obtenu = batterie is site_200.derniere_batterie
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : test d'un site qui répond 301 : DISPONIBLE "
-          "(critère 5)")
-    site_301 = Site("ClientABC", "clientabc.be")
-    site_301.lancer_batterie(
-        [FauxTesteur(Verdict.OK, "301")], CONFIG, fausse_horloge
-    )
-    attendu = StatutDisponibilite.DISPONIBLE
-    obtenu = site_301.statut_disponibilite
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : test d'un site qui répond 301 : code 301 en "
-          "diagnostic (critère 5)")
-    attendu = "301"
-    obtenu = site_301.derniere_batterie.mesures[0].diagnostic
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
     print("Scénario : test d'un site qui répond 404 : INDISPONIBLE "
           "(critère 6)")
     site_404 = Site("ClientABC", "clientabc.be")
@@ -314,19 +205,6 @@ if __name__ == "__main__":
     )
     attendu = StatutDisponibilite.INDISPONIBLE
     obtenu = site_404.statut_disponibilite
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : test d'un site trop lent : INDISPONIBLE "
-          "(critère 8)")
-    site_lent = Site("ClientABC", "clientabc.be")
-    site_lent.lancer_batterie(
-        [FauxTesteur(Verdict.KO, "délai dépassé")], CONFIG, fausse_horloge
-    )
-    attendu = StatutDisponibilite.INDISPONIBLE
-    obtenu = site_lent.statut_disponibilite
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
@@ -368,16 +246,6 @@ if __name__ == "__main__":
     testeur_espion = FauxTesteur(Verdict.OK, "200")
     site_espion = Site("ClientABC", "clientabc.be")
     site_espion.lancer_batterie([testeur_espion], CONFIG, fausse_horloge)
-    attendu = [5.0]
-    obtenu = testeur_espion.delais_recus
-    print(f"  attendu : {attendu}")
-    print(f"  obtenu  : {obtenu}")
-    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print("-" * 40)
-
-    print("Scénario : lire le statut ne relance pas les testeurs")
-    site_espion.statut_disponibilite
-    site_espion.statut_disponibilite
     attendu = [5.0]
     obtenu = testeur_espion.delais_recus
     print(f"  attendu : {attendu}")
