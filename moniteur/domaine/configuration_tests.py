@@ -31,7 +31,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : modification d'une configuration existante")
     attendu = "FrozenInstanceError"
@@ -43,4 +43,4 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)

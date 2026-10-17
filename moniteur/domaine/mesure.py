@@ -38,7 +38,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : mesure OK : verdict OK (critère 4)")
     attendu = Verdict.OK
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : mesure OK : durée conservée")
     attendu = 0.12
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : mesure OK : code HTTP en diagnostic")
     attendu = "200"
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : mesure KO : verdict KO")
     attendu = Verdict.KO
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : mesure KO sans réponse : durée None et non 0 "
           "(EF-03.5)")
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : mesure KO sans réponse : diagnostic "
           "« délai dépassé »")
@@ -88,7 +88,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : modification d'une mesure existante")
     attendu = "FrozenInstanceError"
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : deux mesures aux valeurs identiques sont égales")
     attendu = True
@@ -108,4 +108,4 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)

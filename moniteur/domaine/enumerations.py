@@ -36,7 +36,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : membres de StatutDisponibilite")
     attendu = ["DISPONIBLE", "INDISPONIBLE", "INCONNU"]
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : accès à un membre par son nom")
     attendu = Verdict.KO
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : Verdict.INCONNU n'existe pas dans le MVP "
           "(page MVP, section 5)")
@@ -65,4 +65,4 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)

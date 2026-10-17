@@ -52,7 +52,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : batterie neuve : aucune mesure")
     attendu = 0
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : ajout d'une mesure")
     batterie.ajouter([mesure_ok])
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : deux ajouts successifs : mesures cumulées dans "
           "l'ordre")
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : la propriété mesures renvoie un tuple")
     attendu = tuple
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
 
     print("Scénario : modifier la liste transmise ne modifie pas la "
           "batterie")
@@ -100,4 +100,4 @@ if __name__ == "__main__":
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
-    print()
+    print("-" * 40)
