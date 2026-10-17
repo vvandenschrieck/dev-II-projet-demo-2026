@@ -28,9 +28,10 @@ class RegistreSites:
         est vide (EF-01.3).
         """
         site = Site(nom, uri_principale)
-        if self.__chercher(site.nom) is not None:
+        existant = self.__chercher(site.nom)
+        if existant is not None:
             raise ValueError(
-                f"Un site nommé « {site.nom} » existe déjà (EF-01.2)."
+                f"Un site nommé « {existant.nom} » existe déjà (EF-01.2)."
             )
         self.__sites.append(site)
         return site
