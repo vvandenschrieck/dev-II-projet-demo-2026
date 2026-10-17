@@ -1,0 +1,4 @@
+[submodule "docs/wiki"]
+	path = docs/wiki
+	url = https://github.com/vvandenschrieck/dev-II-projet-demo-2026.wiki.git
+	branch = master
