@@ -41,55 +41,63 @@ class BatterieTests:
 if __name__ == "__main__":
     from moniteur.domaine.enumerations import Verdict
 
-    def afficher(scenario: str, attendu: object, obtenu: object) -> None:
-        """Affiche un scénario de test manuel et son verdict."""
-        print(f"Scénario : {scenario}")
-        print(f"  attendu : {attendu}")
-        print(f"  obtenu  : {obtenu}")
-        print("  → OK" if attendu == obtenu else "  → ÉCHEC")
-
     instant = datetime(2026, 10, 17, 14, 30)
     mesure_ok = Mesure(instant, Verdict.OK, 0.12, "200")
     mesure_ko = Mesure(instant, Verdict.KO, None, "délai dépassé")
-
     batterie = BatterieTests(instant)
-    afficher(
-        "batterie neuve : horodatage reçu",
-        instant,
-        batterie.horodatage,
-    )
-    afficher(
-        "batterie neuve : aucune mesure",
-        0,
-        len(batterie.mesures),
-    )
 
+    print("Scénario : batterie neuve : horodatage reçu")
+    attendu = instant
+    obtenu = batterie.horodatage
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : batterie neuve : aucune mesure")
+    attendu = 0
+    obtenu = len(batterie.mesures)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : ajout d'une mesure")
     batterie.ajouter([mesure_ok])
-    afficher(
-        "ajout d'une mesure",
-        (mesure_ok,),
-        batterie.mesures,
-    )
+    attendu = (mesure_ok,)
+    obtenu = batterie.mesures
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
 
+    print("Scénario : deux ajouts successifs : mesures cumulées dans "
+          "l'ordre")
     batterie.ajouter([mesure_ko])
-    afficher(
-        "deux ajouts successifs : mesures cumulées dans l'ordre",
-        (mesure_ok, mesure_ko),
-        batterie.mesures,
-    )
+    attendu = (mesure_ok, mesure_ko)
+    obtenu = batterie.mesures
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
 
-    afficher(
-        "la propriété mesures renvoie un tuple",
-        tuple,
-        type(batterie.mesures),
-    )
+    print("Scénario : la propriété mesures renvoie un tuple")
+    attendu = tuple
+    obtenu = type(batterie.mesures)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
 
+    print("Scénario : modifier la liste transmise ne modifie pas la "
+          "batterie")
     mesures_envoyees = [mesure_ok]
     autre_batterie = BatterieTests(instant)
     autre_batterie.ajouter(mesures_envoyees)
     mesures_envoyees.append(mesure_ko)
-    afficher(
-        "modifier la liste transmise ne modifie pas la batterie",
-        (mesure_ok,),
-        autre_batterie.mesures,
-    )
+    attendu = (mesure_ok,)
+    obtenu = autre_batterie.mesures
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()

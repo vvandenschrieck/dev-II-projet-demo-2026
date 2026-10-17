@@ -23,27 +23,24 @@ class ConfigurationTests:
 if __name__ == "__main__":
     from dataclasses import FrozenInstanceError
 
-    def afficher(scenario: str, attendu: object, obtenu: object) -> None:
-        """Affiche un scénario de test manuel et son verdict."""
-        print(f"Scénario : {scenario}")
-        print(f"  attendu : {attendu}")
-        print(f"  obtenu  : {obtenu}")
-        print("  → OK" if attendu == obtenu else "  → ÉCHEC")
-
     config = ConfigurationTests(5.0)
-    afficher(
-        "création avec le délai provisoire de 5 s (Q-07)",
-        5.0,
-        config.timeout_s,
-    )
 
+    print("Scénario : création avec le délai provisoire de 5 s (Q-07)")
+    attendu = 5.0
+    obtenu = config.timeout_s
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : modification d'une configuration existante")
+    attendu = "FrozenInstanceError"
     try:
         config.timeout_s = 10.0
         obtenu = "aucune erreur"
     except FrozenInstanceError:
         obtenu = "FrozenInstanceError"
-    afficher(
-        "modification d'une configuration existante",
-        "FrozenInstanceError",
-        obtenu,
-    )
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()

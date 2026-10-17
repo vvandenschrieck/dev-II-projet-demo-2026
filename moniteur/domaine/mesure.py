@@ -28,67 +28,84 @@ class Mesure:
 if __name__ == "__main__":
     from dataclasses import FrozenInstanceError
 
-    def afficher(scenario: str, attendu: object, obtenu: object) -> None:
-        """Affiche un scénario de test manuel et son verdict."""
-        print(f"Scénario : {scenario}")
-        print(f"  attendu : {attendu}")
-        print(f"  obtenu  : {obtenu}")
-        print("  → OK" if attendu == obtenu else "  → ÉCHEC")
-
     instant = datetime(2026, 10, 17, 14, 30)
-
     mesure_ok = Mesure(instant, Verdict.OK, 0.12, "200")
-    afficher(
-        "mesure OK : horodatage conservé",
-        instant,
-        mesure_ok.horodatage,
-    )
-    afficher(
-        "mesure OK : verdict OK (critère 4)",
-        Verdict.OK,
-        mesure_ok.verdict,
-    )
-    afficher(
-        "mesure OK : durée conservée",
-        0.12,
-        mesure_ok.duree_s,
-    )
-    afficher(
-        "mesure OK : code HTTP en diagnostic",
-        "200",
-        mesure_ok.diagnostic,
-    )
-
     mesure_ko = Mesure(instant, Verdict.KO, None, "délai dépassé")
-    afficher(
-        "mesure KO : verdict KO",
-        Verdict.KO,
-        mesure_ko.verdict,
-    )
-    afficher(
-        "mesure KO sans réponse : durée None et non 0 (EF-03.5)",
-        None,
-        mesure_ko.duree_s,
-    )
-    afficher(
-        "mesure KO sans réponse : diagnostic « délai dépassé »",
-        "délai dépassé",
-        mesure_ko.diagnostic,
-    )
 
+    print("Scénario : mesure OK : horodatage conservé")
+    attendu = instant
+    obtenu = mesure_ok.horodatage
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : mesure OK : verdict OK (critère 4)")
+    attendu = Verdict.OK
+    obtenu = mesure_ok.verdict
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : mesure OK : durée conservée")
+    attendu = 0.12
+    obtenu = mesure_ok.duree_s
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : mesure OK : code HTTP en diagnostic")
+    attendu = "200"
+    obtenu = mesure_ok.diagnostic
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : mesure KO : verdict KO")
+    attendu = Verdict.KO
+    obtenu = mesure_ko.verdict
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : mesure KO sans réponse : durée None et non 0 "
+          "(EF-03.5)")
+    attendu = None
+    obtenu = mesure_ko.duree_s
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : mesure KO sans réponse : diagnostic "
+          "« délai dépassé »")
+    attendu = "délai dépassé"
+    obtenu = mesure_ko.diagnostic
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
+
+    print("Scénario : modification d'une mesure existante")
+    attendu = "FrozenInstanceError"
     try:
         mesure_ok.verdict = Verdict.KO
         obtenu = "aucune erreur"
     except FrozenInstanceError:
         obtenu = "FrozenInstanceError"
-    afficher(
-        "modification d'une mesure existante",
-        "FrozenInstanceError",
-        obtenu,
-    )
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
 
-    afficher(
-        "deux mesures aux valeurs identiques sont égales",
-        True,
-        mesure_ok == Mesure(instant, Verdict.OK, 0.12, "200"),
-    )
+    print("Scénario : deux mesures aux valeurs identiques sont égales")
+    attendu = True
+    obtenu = mesure_ok == Mesure(instant, Verdict.OK, 0.12, "200")
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print()
