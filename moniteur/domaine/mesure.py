@@ -39,17 +39,41 @@ if __name__ == "__main__":
 
     mesure_ok = Mesure(instant, Verdict.OK, 0.12, "200")
     afficher(
-        "mesure OK avec durée et code HTTP (critère 4)",
-        (instant, Verdict.OK, 0.12, "200"),
-        (mesure_ok.horodatage, mesure_ok.verdict,
-         mesure_ok.duree_s, mesure_ok.diagnostic),
+        "mesure OK : horodatage conservé",
+        instant,
+        mesure_ok.horodatage,
+    )
+    afficher(
+        "mesure OK : verdict OK (critère 4)",
+        Verdict.OK,
+        mesure_ok.verdict,
+    )
+    afficher(
+        "mesure OK : durée conservée",
+        0.12,
+        mesure_ok.duree_s,
+    )
+    afficher(
+        "mesure OK : code HTTP en diagnostic",
+        "200",
+        mesure_ok.diagnostic,
     )
 
     mesure_ko = Mesure(instant, Verdict.KO, None, "délai dépassé")
     afficher(
+        "mesure KO : verdict KO",
+        Verdict.KO,
+        mesure_ko.verdict,
+    )
+    afficher(
         "mesure KO sans réponse : durée None et non 0 (EF-03.5)",
-        (Verdict.KO, None, "délai dépassé"),
-        (mesure_ko.verdict, mesure_ko.duree_s, mesure_ko.diagnostic),
+        None,
+        mesure_ko.duree_s,
+    )
+    afficher(
+        "mesure KO sans réponse : diagnostic « délai dépassé »",
+        "délai dépassé",
+        mesure_ko.diagnostic,
     )
 
     try:

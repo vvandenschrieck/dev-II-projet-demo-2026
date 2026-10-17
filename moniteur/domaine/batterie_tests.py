@@ -54,9 +54,14 @@ if __name__ == "__main__":
 
     batterie = BatterieTests(instant)
     afficher(
-        "batterie neuve : horodatage reçu et aucune mesure",
-        (instant, ()),
-        (batterie.horodatage, batterie.mesures),
+        "batterie neuve : horodatage reçu",
+        instant,
+        batterie.horodatage,
+    )
+    afficher(
+        "batterie neuve : aucune mesure",
+        0,
+        len(batterie.mesures),
     )
 
     batterie.ajouter([mesure_ok])
