@@ -3,7 +3,8 @@
 Crée les testeurs, la configuration et le registre, puis lance
 l'interface choisie en ligne de commande :
 
-    python main.py --interface simple
+    python main.py --interface simple   (valeur par défaut)
+    python main.py --interface textual
 """
 
 import argparse
@@ -24,7 +25,7 @@ def lire_arguments() -> argparse.Namespace:
     )
     analyseur.add_argument(
         "--interface",
-        choices=["simple"],
+        choices=["simple", "textual"],
         default="simple",
         help="interface utilisateur à lancer (par défaut : simple)",
     )
@@ -40,6 +41,11 @@ def main() -> None:
     if arguments.interface == "simple":
         from moniteur.interface import tui_simple
         tui_simple.lancer(registre, testeurs, config, datetime.now)
+    else:
+        # textual n'est importé que si cette interface est choisie : la
+        # TUI simple fonctionne donc même sans textual installé.
+        from moniteur.interface import tui_textual
+        tui_textual.lancer(registre, testeurs, config, datetime.now)
 
 
 if __name__ == "__main__":
