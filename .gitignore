@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# Claude Code : réglages personnels (le dossier .claude/ partagé reste suivi)
+.claude/settings.local.json
