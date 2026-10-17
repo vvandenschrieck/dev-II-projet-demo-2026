@@ -88,12 +88,15 @@ requirements.txt        # textual
 
 ## Tests manuels  (les tests unitaires viendront plus tard)
 
-- Chaque module du domaine et des testeurs se termine par un bloc
-  `if __name__ == "__main__":` qui exerce ses méthodes publiques.
+- Un bloc `if __name__ == "__main__":` n'est ajouté à un module que s'il a un réel
+  intérêt pédagogique : montrer un comportement non évident, une règle métier
+  (EF-xx, RM-xx), un cas d'erreur ou un critère d'acceptation de la page MVP.
+  Pas de scénario qui ne fait que vérifier un accesseur ou une affectation triviale,
+  et pas de bloc dans un module qui n'a rien d'intéressant à montrer.
+- En cas de doute, proposer le scénario et attendre validation avant de l'écrire.
 - Lancement depuis la racine du projet : `python -m moniteur.domaine.site`
   (et non `python moniteur/domaine/site.py`, qui casse les imports du paquet).
-- Un scénario par comportement important (cas normal et cas d'erreur) et par critère
-  d'acceptation de la page MVP.
+- Peu de scénarios, bien choisis, plutôt qu'une couverture exhaustive.
   Format de sortie pour chaque scénario :
       Scénario : ajout d'un site avec un nom déjà utilisé (EF-01.2)
         attendu : ValueError
@@ -106,14 +109,15 @@ requirements.txt        # textual
 - `TesteurHttp` se teste contre un serveur local (`http.server` lancé dans le bloc de test),
   jamais contre des sites réels.
 - Les interfaces se vérifient à la main, en suivant les critères d'acceptation de la page MVP.
-- Lancer les tests manuels des modules modifiés avant chaque commit.
+- Lancer les tests manuels existants des modules modifiés avant chaque commit.
 
 ## Manière de travailler
 
 1. Avant d'écrire du code, proposer un plan et attendre validation.
 2. Ordre de réalisation : domaine, puis `TesteurHttp`, puis `main.py` avec la TUI simple,
    puis la TUI Textual.
-3. Avancer par petites étapes : une classe (ou une méthode) à la fois, avec ses tests manuels.
+3. Avancer par petites étapes : une classe (ou une méthode) à la fois, avec ses tests manuels
+   lorsqu'ils sont utiles (voir « Tests manuels »).
 4. Après chaque étape : expliquer brièvement les choix faits et ce qui reste ouvert.
 5. Un commit par étape, message en français à l'impératif
    (« Ajoute le calcul du statut de disponibilité »).
