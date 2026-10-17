@@ -10,3 +10,6 @@ venv/
 
 # Claude Code : réglages personnels (le dossier .claude/ partagé reste suivi)
 .claude/settings.local.json
+
+# PyCharm
+.idea/
