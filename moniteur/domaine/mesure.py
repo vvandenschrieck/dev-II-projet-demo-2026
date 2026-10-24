@@ -16,7 +16,9 @@ class Mesure:
     lorsqu'aucune réponse n'a été reçue : ce n'est pas une durée nulle
     (page MVP, section 2.1, et EF-03.5).
 
-    La classe est figée : une mesure ne change plus après sa création.
+    INVARIANT : les quatre champs ne changent jamais après la création
+    (classe figée). Le constructeur, généré par la dataclass, ne
+    contrôle pas les valeurs reçues.
     """
 
     horodatage: datetime
