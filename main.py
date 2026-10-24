@@ -19,7 +19,14 @@ TIMEOUT_S = 5.0
 
 
 def lire_arguments() -> argparse.Namespace:
-    """Lit les arguments de la ligne de commande et les renvoie."""
+    """Lit les arguments de la ligne de commande et les renvoie.
+
+    PRE : aucune.
+    POST : renvoie les arguments lus, dont l'attribut interface vaut
+           « simple » (par défaut) ou « textual ». Ne modifie rien.
+           Exception SystemExit : si les arguments sont invalides ou si
+           l'aide est demandée (comportement d'argparse).
+    """
     analyseur = argparse.ArgumentParser(
         description="Surveillance des sites web de M. Durant."
     )
@@ -33,7 +40,18 @@ def lire_arguments() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Assemble l'application et lance l'interface choisie."""
+    """Assemble l'application et lance l'interface choisie.
+
+    PRE : aucune.
+    POST : crée un testeur HTTP, la configuration (TIMEOUT_S) et un
+           registre vide, puis lance l'interface choisie avec
+           l'horloge système. Ne rend la main que lorsque l'utilisatrice
+           quitte.
+           Exception SystemExit : si les arguments sont invalides ou si
+           l'aide est demandée.
+           Exception ImportError : si l'interface textual est choisie et
+           que textual n'est pas installé.
+    """
     arguments = lire_arguments()
     testeurs = [TesteurHttp()]
     config = ConfigurationTests(TIMEOUT_S)

@@ -30,7 +30,11 @@ FORMAT_HORODATAGE = "%d/%m/%Y %H:%M:%S"
 
 
 class MoniteurApp(App):
-    """Application Textual de surveillance des sites."""
+    """Application Textual de surveillance des sites.
+
+    INVARIANT : le registre, les testeurs, la configuration et l'horloge
+    reçus à la création ne sont jamais remplacés.
+    """
 
     TITLE = "Surveillance des sites"
     CSS = """
@@ -52,7 +56,11 @@ class MoniteurApp(App):
         config: ConfigurationTests,
         horloge: Callable[[], datetime],
     ) -> None:
-        """Mémorise les objets créés par main.py, transmis au domaine."""
+        """Mémorise les objets créés par main.py, transmis au domaine.
+
+        PRE : aucune.
+        POST : l'application est créée, sans rien afficher.
+        """
         super().__init__()
         self.__registre = registre
         self.__testeurs = testeurs
@@ -60,7 +68,12 @@ class MoniteurApp(App):
         self.__horloge = horloge
 
     def compose(self) -> ComposeResult:
-        """Construit l'écran : tableau, formulaire, message et raccourcis."""
+        """Construit l'écran : tableau, formulaire, message et raccourcis.
+
+        PRE : aucune.
+        POST : produit les éléments de l'écran, dans l'ordre. Ne
+               modifie rien.
+        """
         yield Header()
         yield DataTable(id="sites", cursor_type="row")
         with Horizontal(id="formulaire"):
@@ -71,7 +84,13 @@ class MoniteurApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Crée les colonnes du tableau et l'affiche une première fois."""
+        """Crée les colonnes du tableau et l'affiche une première fois.
+
+        PRE : l'écran a été construit (compose).
+        POST : le tableau a ses cinq colonnes et affiche les sites du
+               registre (EF-02.1). Ne modifie ni le registre ni les
+               sites.
+        """
         tableau = self.query_one(DataTable)
         tableau.add_columns(
             "Nom", "Statut", "Dernier test", "Diagnostic", "URI"
@@ -79,16 +98,36 @@ class MoniteurApp(App):
         self.__rafraichir()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Ajoute le site saisi lorsque le bouton est pressé."""
+        """Ajoute le site saisi lorsque le bouton est pressé.
+
+        PRE : aucune.
+        POST : même effet que l'envoi du formulaire (voir
+               on_input_submitted).
+        """
         self.__ajouter_site()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Ajoute le site saisi lorsque Entrée est pressée dans le
-        formulaire."""
+        """Ajoute le site saisi lorsque Entrée est pressée (EF-01.1).
+
+        PRE : aucune.
+        POST : si le domaine accepte le nom et l'URI du formulaire, le
+               site est ajouté au registre, le formulaire est vidé, une
+               confirmation est affichée et le tableau est rafraîchi.
+               Sinon (nom déjà utilisé, nom ou URI vide, EF-01.2 et
+               EF-01.3), le motif du refus est affiché en rouge, le
+               formulaire est conservé et le registre n'est pas modifié.
+        """
         self.__ajouter_site()
 
     def action_tester_site(self) -> None:
-        """Lance une batterie sur le site sélectionné (EF-03.1)."""
+        """Lance une batterie sur le site sélectionné (EF-03.1).
+
+        PRE : aucune.
+        POST : si le tableau est vide, affiche « Aucun site à tester. ».
+               Sinon lance, en arrière-plan, une batterie sur le site
+               sélectionné : elle rejoint son historique et le tableau
+               est rafraîchi à la fin du test.
+        """
         tableau = self.query_one(DataTable)
         if tableau.row_count == 0:
             self.__afficher_message("Aucun site à tester.")
@@ -98,7 +137,13 @@ class MoniteurApp(App):
         self.__lancer_tests([site])
 
     def action_tester_tous(self) -> None:
-        """Lance une batterie sur chaque site du registre (EF-03.4)."""
+        """Lance une batterie sur chaque site du registre (EF-03.4).
+
+        PRE : aucune.
+        POST : lance, en arrière-plan, une batterie sur chaque site du
+               registre, dans l'ordre : elle rejoint l'historique du
+               site et le tableau est rafraîchi après chaque site.
+        """
         self.__lancer_tests(list(self.__registre.sites))
 
     def __ajouter_site(self) -> None:
@@ -198,7 +243,12 @@ def lancer(
 ) -> None:
     """Lance l'application Textual jusqu'à ce que l'utilisatrice quitte.
 
-    Reçoit le registre, les testeurs, la configuration et l'horloge,
-    créés par main.py et transmis tels quels au domaine.
+    registre, testeurs, config et horloge sont créés par main.py et
+    transmis tels quels au domaine.
+
+    PRE : config.timeout_s > 0.
+    POST : affiche l'application et ne rend la main que lorsque
+           l'utilisatrice quitte. Modifie registre (sites ajoutés) et
+           les sites testés (nouvelles batteries).
     """
     MoniteurApp(registre, testeurs, config, horloge).run()

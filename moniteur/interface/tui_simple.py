@@ -37,8 +37,17 @@ def lancer(
 ) -> None:
     """Affiche les sites et le menu jusqu'à ce que l'utilisatrice quitte.
 
-    Reçoit le registre, les testeurs, la configuration et l'horloge,
-    créés par main.py et transmis tels quels au domaine.
+    registre, testeurs, config et horloge sont créés par main.py et
+    transmis tels quels au domaine.
+
+    PRE : config.timeout_s > 0.
+    POST : affiche l'état des sites puis le menu après chaque action
+           (page MVP, section 2.2), jusqu'au choix « 0 » ou jusqu'à la
+           fin de la saisie (Ctrl+D, Ctrl+C), puis affiche « Au revoir. ».
+           Modifie registre (sites ajoutés) et les sites testés
+           (nouvelles batteries).
+           Exception ValueError : si testeurs est vide et qu'un site est
+           testé.
     """
     try:
         while True:
@@ -62,9 +71,10 @@ def lancer(
 def afficher_sites(registre: RegistreSites) -> None:
     """Affiche la liste des sites avec leur statut (EF-02.1).
 
-    Chaque ligne indique le statut, l'horodatage du dernier test
-    (EF-02.2) et le diagnostic. Sa couleur met en évidence les sites
-    indisponibles ou jamais testés (EF-02.4).
+    PRE : aucune.
+    POST : affiche un titre, puis un message si le registre est vide, ou
+           sinon un en-tête et une ligne par site, dans l'ordre du
+           registre (voir afficher_site). Ne modifie rien.
     """
     print()
     print("=== État des sites ===")
@@ -78,7 +88,14 @@ def afficher_sites(registre: RegistreSites) -> None:
 
 
 def afficher_site(site: Site) -> None:
-    """Affiche une ligne colorée selon le statut du site."""
+    """Affiche une ligne colorée selon le statut du site (EF-02.4).
+
+    PRE : aucune.
+    POST : affiche une ligne avec le nom, le statut, l'horodatage du
+           dernier test (EF-02.2), le diagnostic et l'URI principale.
+           Horodatage et diagnostic valent « - » si le site n'a jamais
+           été testé. Ne modifie rien.
+    """
     statut = site.statut_disponibilite
     batterie = site.derniere_batterie
     if batterie is None:
@@ -96,7 +113,13 @@ def afficher_site(site: Site) -> None:
 
 
 def demander_choix() -> str:
-    """Affiche le menu et renvoie le choix saisi."""
+    """Affiche le menu et renvoie le choix saisi.
+
+    PRE : aucune.
+    POST : affiche le menu, puis renvoie la saisie de l'utilisatrice
+           sans les espaces de début et de fin. Ne modifie rien.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
     print()
     print("1. Ajouter un site")
     print("2. Tester un site")
@@ -108,8 +131,13 @@ def demander_choix() -> str:
 def ajouter_site(registre: RegistreSites) -> None:
     """Demande le nom et l'URI principale d'un site, puis l'ajoute.
 
-    Un refus du domaine (nom déjà utilisé, nom ou URI vide, EF-01.2 et
-    EF-01.3) est affiché sans interrompre le programme.
+    PRE : aucune.
+    POST : demande un nom puis une URI principale. Si le domaine les
+           accepte, le site est ajouté à registre et une confirmation
+           est affichée. Sinon (nom déjà utilisé, nom ou URI vide,
+           EF-01.2 et EF-01.3), « Refus : » suivi du motif est affiché
+           et registre n'est pas modifié.
+           Exception EOFError : si l'entrée standard est fermée.
     """
     nom = input("Nom du site : ")
     uri_principale = input("URI principale : ")
@@ -126,7 +154,16 @@ def tester_site(
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
 ) -> None:
-    """Demande le nom d'un site et lance une batterie sur lui (EF-03.1)."""
+    """Demande le nom d'un site et lance une batterie sur lui (EF-03.1).
+
+    PRE : config.timeout_s > 0.
+    POST : demande le nom d'un site. Si aucun site ne porte ce nom,
+           « Refus : » suivi du motif est affiché et rien n'est testé.
+           Sinon un message est affiché et une batterie est lancée sur
+           ce site : elle rejoint son historique.
+           Exception ValueError : si testeurs est vide.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
     nom = input("Nom du site à tester : ")
     try:
         site = registre.trouver_site(nom)
@@ -143,7 +180,15 @@ def tester_tous_les_sites(
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
 ) -> None:
-    """Lance une batterie sur chaque site du registre (EF-03.4)."""
+    """Lance une batterie sur chaque site du registre (EF-03.4).
+
+    PRE : config.timeout_s > 0.
+    POST : pour chaque site de registre, dans l'ordre, affiche un
+           message puis lance une batterie : elle rejoint l'historique
+           du site. Ne fait rien si le registre est vide.
+           Exception ValueError : si testeurs est vide et que le
+           registre contient au moins un site.
+    """
     for site in registre.sites:
         print(f"Test de « {site.nom} » en cours...")
         site.lancer_batterie(testeurs, config, horloge)
