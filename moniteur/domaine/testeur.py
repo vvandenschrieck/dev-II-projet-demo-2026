@@ -35,10 +35,15 @@ class Testeur(ABC):
     def executer(
         self, site: Site, timeout_s: float, horodatage: datetime
     ) -> list[Mesure]:
-        """Teste le site et renvoie les mesures obtenues.
+        """Teste le site et renvoie les mesures obtenues (EF-03.1).
 
-        Reçoit le site à tester, le délai maximal d'attente en secondes
-        (EF-03.5) et l'horodatage de la batterie, à reporter dans
-        chaque mesure. Un site injoignable n'est pas une erreur : il
-        donne une mesure KO.
+        timeout_s est le délai maximal d'attente en secondes (EF-03.5) ;
+        horodatage est celui de la batterie, à reporter dans chaque
+        mesure.
+
+        PRE : aucune.
+        POST : renvoie la liste des mesures obtenues, chacune datée de
+               horodatage. Un site injoignable ne provoque pas
+               d'exception : il donne une mesure de verdict KO.
+               Ne modifie ni site ni les autres paramètres.
         """
