@@ -16,15 +16,26 @@ class Site:
 
     Un site est défini par un nom et une URI principale (EF-01.1). Il
     conserve l'historique des batteries de tests lancées sur lui.
+
+    INVARIANT :
+    - le nom et l'URI principale ne sont jamais vides, sans
+    espace au début ni à la fin, et ne changent jamais ;
+    - l'URI principale porte toujours un schéma ;
+    - l'historique contient les batteries dans l'ordre de
+      leur lancement.
     """
 
     def __init__(self, nom: str, uri_principale: str) -> None:
         """Crée un site à partir de son nom et de son URI principale.
 
-        Les espaces au début et à la fin sont retirés. Une URI sans
-        schéma (« exemple.be ») reçoit « https:// » par défaut.
-        Lève ValueError si le nom ou l'URI principale est vide
-        (EF-01.3).
+        PRE : aucune.
+        POST : le site est créé, sans aucune batterie. Les espaces au
+               début et à la fin de nom et de uri_principale sont
+               retirés. Une URI sans schéma (« exemple.be ») reçoit
+               « https:// » par défaut.
+               Exception ValueError : si le nom est vide.
+               Exception ValueError : si l'URI principale est vide
+               (EF-01.3).
         """
         nom = nom.strip()
         uri_principale = uri_principale.strip()
@@ -42,18 +53,31 @@ class Site:
 
     @property
     def nom(self) -> str:
-        """Nom du site, tel qu'il a été saisi."""
+        """Donne le nom du site.
+
+        PRE : aucune.
+        POST : renvoie le nom du site, tel qu'il a été saisi (sans les
+               espaces de début et de fin). Ne modifie rien.
+        """
         return self.__nom
 
     @property
     def uri_principale(self) -> str:
-        """URI principale du site, avec son schéma (http:// ou https://)."""
+        """Donne l'URI principale du site.
+
+        PRE : aucune.
+        POST : renvoie l'URI principale, avec son schéma. Ne modifie
+               rien.
+        """
         return self.__uri_principale
 
     @property
     def derniere_batterie(self) -> BatterieTests | None:
-        """Dernière batterie lancée sur le site, ou None s'il n'a
-        jamais été testé (EF-02.2).
+        """Donne la dernière batterie lancée sur le site (EF-02.2).
+
+        PRE : aucune.
+        POST : renvoie la dernière batterie lancée, ou None si le site
+               n'a jamais été testé. Ne modifie rien.
         """
         if len(self.__historique) == 0:
             return None
@@ -61,15 +85,19 @@ class Site:
 
     @property
     def statut_disponibilite(self) -> StatutDisponibilite:
-        """Statut de disponibilité, calculé sur la dernière batterie.
+        """Calcule le statut de disponibilité sur la dernière batterie.
 
-        INCONNU si le site n'a jamais été testé, DISPONIBLE si toutes
-        les mesures de la dernière batterie sont OK, INDISPONIBLE sinon
-        (RM-03, page MVP section 3.2). Le statut n'est pas enregistré :
-        il est recalculé à chaque lecture.
+        Le statut n'est pas enregistré : il est recalculé à chaque
+        lecture (RM-03, page MVP section 3.2).
+
+        PRE : aucune.
+        POST : renvoie INCONNU si le site n'a jamais été testé ou si sa
+               dernière batterie n'a aucune mesure, DISPONIBLE si toutes
+               les mesures de la dernière batterie sont OK,
+               INDISPONIBLE si l'une d'elles est KO. Ne modifie rien.
         """
         batterie = self.derniere_batterie
-        if batterie is None:
+        if batterie is None or len(batterie.mesures) == 0:
             return StatutDisponibilite.INCONNU
         for mesure in batterie.mesures:
             if mesure.verdict == Verdict.KO:
@@ -84,11 +112,19 @@ class Site:
     ) -> BatterieTests:
         """Lance une batterie de tests sur le site et la renvoie (EF-03.1).
 
-        Reçoit les testeurs à exécuter, la configuration (délai maximal,
-        EF-03.5) et l'horloge qui fournit l'horodatage de la batterie.
-        Chaque testeur est exécuté à son tour et ses mesures sont
-        ajoutées à la batterie, qui rejoint ensuite l'historique du site.
-        Lève ValueError si la liste de testeurs est vide.
+        config donne le délai maximal d'attente (EF-03.5) ; horloge
+        fournit l'horodatage de la batterie.
+
+        PRE : aucune.
+        POST : renvoie la nouvelle batterie, datée de l'instant donné
+               par horloge (appelée une fois). Chaque testeur est
+               exécuté à son tour, et ses mesures sont ajoutées à la
+               batterie dans cet ordre. La batterie est ajoutée à la
+               fin de l'historique du site : elle devient sa dernière
+               batterie. Ne modifie ni testeurs ni config.
+               Exception ValueError : si testeurs est vide.
+               Si une exception est levée, l'historique n'est pas
+               modifié.
         """
         if len(testeurs) == 0:
             raise ValueError(
@@ -170,6 +206,25 @@ if __name__ == "__main__":
     print("Scénario : site neuf : statut INCONNU (critère 1)")
     attendu = StatutDisponibilite.INCONNU
     obtenu = Site("ClientABC", "clientabc.be").statut_disponibilite
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    class TesteurVide(Testeur):
+        """Testeur de test : ne renvoie aucune mesure, sans réseau."""
+
+        def executer(
+            self, site: Site, timeout_s: float, horodatage: datetime
+        ) -> list[Mesure]:
+            """Renvoie une liste vide."""
+            return []
+
+    print("Scénario : batterie sans aucune mesure : statut INCONNU")
+    site_vide = Site("ClientABC", "clientabc.be")
+    site_vide.lancer_batterie([TesteurVide()], CONFIG, fausse_horloge)
+    attendu = StatutDisponibilite.INCONNU
+    obtenu = site_vide.statut_disponibilite
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
