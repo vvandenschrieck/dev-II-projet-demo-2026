@@ -80,11 +80,40 @@ requirements.txt        # textual
 
 ## Docstrings
 
-- Chaque module, classe et méthode publique a une docstring (PEP 257).
-- Docstrings informelles, en quelques phrases simples : ce que fait la méthode,
-  ce qu'elle reçoit, ce qu'elle renvoie et les cas d'erreur éventuels.
-  Pas de rubriques formelles (PRE, POST, Args, Returns…) pour le moment.
-- Mentionner les exigences concernées (EF-01.2, RM-03…).
+- Chaque module, classe et méthode publique a une docstring (PEP 257), en français.
+  Les propriétés (`@property`) suivent la même règle.
+- Les fonctions et méthodes sont documentées par un contrat (programmation par
+  contrat), dans une docstring placée sous la signature. Trois rubriques :
+  - **Résumé** : une phrase qui dit ce que fait la méthode. Référencer la règle
+    métier si c'est pertinent (EF-01.2, RM-03…).
+  - **PRE** : ce que l'appelant doit garantir (paramètres et état de `self`).
+    `PRE : aucune.` si rien n'est exigé.
+  - **POST** : le cas normal (valeur renvoyée, puis ce qui est modifié, ou
+    « Ne modifie rien. »), puis une ligne par exception, indentée sous la POST :
+    `Exception <Type> : <condition>`. Cela vaut aussi pour une exception propagée
+    depuis un appel : on décrit sa condition, sans citer la méthode appelée (le
+    contrat ne dépend pas de l'implémentation). Une exception interceptée dans le
+    corps n'apparaît pas ; une exception transformée apparaît sous son nouveau type.
+- Pas de sections `Args:`, `Returns:` ou `Parameters`. Les types ne sont pas répétés :
+  ils sont donnés par les type hints.
+- L'invariant de classe figure dans la docstring de la classe, sous la mention
+  `INVARIANT`. Il est établi par le constructeur et préservé par les méthodes publiques.
+- Précondition faible pour une méthode publique (elle gère tous les cas) ; une
+  précondition forte n'est acceptable que pour une méthode interne (préfixe `_`).
+- Une commande modifie et ne renvoie rien ; une requête renvoie une valeur et ne
+  modifie rien. Une fonction pure dit « Ne modifie rien. »
+- Si la règle métier ne tranche pas un cas, ne pas inventer de comportement :
+  signaler la question (Q-xx si elle existe).
+- Exemple :
+
+      def moyenne_classe(code: str) -> float:
+          """Calcule la moyenne des notes d'une classe.
+
+          PRE : aucune.
+          POST : renvoie la moyenne des notes de la classe. Ne modifie rien.
+                 Exception ValueError : si le code de la classe n'existe pas.
+                 Exception ValueError : si la classe n'a aucune note.
+          """
 
 ## Tests manuels  (les tests unitaires viendront plus tard)
 
