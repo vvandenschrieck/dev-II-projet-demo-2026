@@ -94,7 +94,7 @@ class MoniteurApp(App):
             self.__afficher_message("Aucun site à tester.")
             return
         cle = tableau.coordinate_to_cell_key(tableau.cursor_coordinate)
-        site = self.__registre.site(cle.row_key.value)
+        site = self.__registre.trouver_site(cle.row_key.value)
         self.__lancer_tests([site])
 
     def action_tester_tous(self) -> None:

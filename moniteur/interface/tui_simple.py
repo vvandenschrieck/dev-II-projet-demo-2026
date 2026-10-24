@@ -129,7 +129,7 @@ def tester_site(
     """Demande le nom d'un site et lance une batterie sur lui (EF-03.1)."""
     nom = input("Nom du site à tester : ")
     try:
-        site = registre.site(nom)
+        site = registre.trouver_site(nom)
     except ValueError as erreur:
         print(f"Refus : {erreur}")
         return

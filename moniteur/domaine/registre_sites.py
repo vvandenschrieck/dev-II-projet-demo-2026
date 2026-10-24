@@ -9,23 +9,42 @@ class RegistreSites:
     Le registre crée les sites et garantit l'unicité de leur nom
     (EF-01.1, EF-01.2). La comparaison des noms ne tient pas compte de
     la casse : « ClientABC » et « clientabc » désignent le même site.
+
+    INVARIANT : deux sites du registre ne portent jamais le même nom,
+    à la casse près ; les sites sont conservés dans l'ordre de leur
+    ajout.
     """
 
     def __init__(self) -> None:
-        """Crée un registre vide."""
+        """Crée un registre vide.
+
+        PRE : aucune.
+        POST : le registre est créé, sans aucun site.
+        """
         self.__sites: list[Site] = []
 
     @property
     def sites(self) -> tuple[Site, ...]:
-        """Sites du registre, dans l'ordre de leur ajout (EF-02.1)."""
+        """Donne les sites du registre, dans l'ordre de leur ajout (EF-02.1).
+
+        PRE : aucune.
+        POST : renvoie un tuple des sites (copie : le code extérieur ne
+               peut pas modifier la liste interne). Ne modifie rien.
+        """
         return tuple(self.__sites)
 
     def ajouter_site(self, nom: str, uri_principale: str) -> Site:
         """Crée un site, l'ajoute au registre et le renvoie (EF-01.1).
 
-        Lève ValueError si un site du même nom existe déjà, sans tenir
-        compte de la casse (EF-01.2), ou si le nom ou l'URI principale
-        est vide (EF-01.3).
+        PRE : aucune.
+        POST : renvoie le site créé, qui est ajouté à la fin du
+               registre. Une URI sans schéma reçoit « https:// ».
+               Exception ValueError : si un site du même nom existe déjà,
+               sans tenir compte de la casse (EF-01.2).
+               Exception ValueError : si le nom est vide.
+               Exception ValueError : si l'URI principale est vide
+               (EF-01.3).
+               Si une exception est levée, le registre n'est pas modifié.
         """
         site = Site(nom, uri_principale)
         existant = self.__chercher(site.nom)
@@ -36,10 +55,14 @@ class RegistreSites:
         self.__sites.append(site)
         return site
 
-    def site(self, nom: str) -> Site:
-        """Renvoie le site qui porte ce nom, sans tenir compte de la casse.
+    def trouver_site(self, nom: str) -> Site:
+        """Trouve le site qui porte ce nom, sans tenir compte de la casse.
 
-        Lève ValueError si aucun site ne porte ce nom.
+        PRE : aucune.
+        POST : renvoie le site du registre dont le nom correspond à nom
+               (casse et espaces de début et de fin ignorés). Ne modifie
+               rien.
+               Exception ValueError : si aucun site ne porte ce nom.
         """
         site = self.__chercher(nom)
         if site is None:
@@ -125,9 +148,9 @@ if __name__ == "__main__":
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
     print("-" * 40)
 
-    print("Scénario : site(\"clientabc\") retrouve « ClientABC »")
+    print("Scénario : trouver_site(\"clientabc\") retrouve « ClientABC »")
     attendu = "ClientABC"
-    obtenu = registre.site("clientabc").nom
+    obtenu = registre.trouver_site("clientabc").nom
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
@@ -136,7 +159,7 @@ if __name__ == "__main__":
     print("Scénario : recherche d'un site inconnu")
     attendu = "ValueError"
     try:
-        registre.site("Inconnu")
+        registre.trouver_site("Inconnu")
         obtenu = "aucune erreur"
     except ValueError:
         obtenu = "ValueError"
