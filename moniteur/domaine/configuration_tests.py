@@ -13,8 +13,10 @@ class ConfigurationTests:
     cliente (Q-07) ; 5 secondes sont utilisées en attendant (page MVP,
     section 5).
 
-    La classe est figée : une configuration se remplace plutôt qu'elle
-    ne se modifie.
+    INVARIANT : le délai maximal ne change jamais après la création
+    (classe figée) : une configuration se remplace plutôt qu'elle ne se
+    modifie. Le constructeur, généré par la dataclass, ne contrôle pas
+    la valeur reçue.
     """
 
     timeout_s: float
