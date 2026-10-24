@@ -12,29 +12,48 @@ class BatterieTests:
     (EF-03.1). Elle porte l'horodatage du lancement, affiché à
     l'utilisatrice (EF-02.2), et regroupe les mesures renvoyées par
     les testeurs.
+
+    INVARIANT : l'horodatage ne change jamais après la construction ;
+    les mesures sont conservées dans l'ordre de leur ajout.
     """
 
     def __init__(self, horodatage: datetime) -> None:
-        """Crée une batterie vide, datée de l'instant reçu."""
+        """Crée une batterie vide, datée de l'instant reçu.
+
+        PRE : aucune.
+        POST : la batterie est créée, datée de horodatage, sans mesure.
+        """
         self.__horodatage = horodatage
         self.__mesures: list[Mesure] = []
 
     @property
     def horodatage(self) -> datetime:
-        """Instant du lancement de la batterie (EF-02.2)."""
+        """Donne l'instant du lancement de la batterie (EF-02.2).
+
+        PRE : aucune.
+        POST : renvoie l'horodatage de la batterie. Ne modifie rien.
+        """
         return self.__horodatage
 
     @property
     def mesures(self) -> tuple[Mesure, ...]:
-        """Mesures de la batterie, dans l'ordre de leur ajout.
+        """Donne les mesures de la batterie, dans l'ordre de leur ajout.
 
-        Renvoie un tuple : le code extérieur ne peut pas modifier la
-        liste interne.
+        PRE : aucune.
+        POST : renvoie un tuple des mesures (sous forme de copie :
+               le code extérieur ne peut pas modifier la liste interne).
+               Ne modifie rien.
         """
         return tuple(self.__mesures)
 
     def ajouter(self, mesures: list[Mesure]) -> None:
-        """Ajoute à la batterie les mesures renvoyées par un testeur."""
+        """Ajoute à la batterie les mesures renvoyées par un testeur.
+
+        PRE : aucune.
+        POST : les éléments de mesures sont ajoutés à la fin de la
+               batterie, dans leur ordre. La liste mesures donnée en
+               paramètre n'est ni modifiée ni conservée.
+        """
         self.__mesures.extend(mesures)
 
 
