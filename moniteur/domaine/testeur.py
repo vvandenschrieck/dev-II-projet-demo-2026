@@ -41,7 +41,7 @@ class Testeur(ABC):
         horodatage est celui de la batterie, à reporter dans chaque
         mesure.
 
-        PRE : aucune.
+        PRE : timeout_s > 0.
         POST : renvoie la liste des mesures obtenues, chacune datée de
                horodatage. Un site injoignable ne provoque pas
                d'exception : il donne une mesure de verdict KO.

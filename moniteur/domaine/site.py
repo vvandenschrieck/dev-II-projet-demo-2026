@@ -115,7 +115,7 @@ class Site:
         config donne le délai maximal d'attente (EF-03.5) ; horloge
         fournit l'horodatage de la batterie.
 
-        PRE : aucune.
+        PRE : config.timeout_s > 0 (précondition de Testeur.executer).
         POST : renvoie la nouvelle batterie, datée de l'instant donné
                par horloge (appelée une fois). Chaque testeur est
                exécuté à son tour, et ses mesures sont ajoutées à la

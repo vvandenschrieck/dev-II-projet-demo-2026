@@ -34,13 +34,22 @@ class TesteurHttp(Testeur):
     ) -> list[Mesure]:
         """Teste l'URI principale du site et renvoie une seule mesure.
 
-        Réponse 2xx ou 3xx : verdict OK. Réponse 4xx ou 5xx : verdict KO
-        (RM-03). Dans ces deux cas, la mesure contient la durée et le
-        code HTTP. Si aucune réponse n'est reçue (nom introuvable,
-        connexion refusée, erreur TLS, délai dépassé, EF-03.5), la
-        mesure est KO, sans durée, avec la nature de l'erreur. Aucune
-        exception n'est propagée : un site injoignable n'est pas une
-        erreur du programme.
+        Un site injoignable n'est pas une erreur du programme : il donne
+        une mesure KO (EF-03.1, EF-03.5).
+
+        PRE : timeout_s > 0.
+        POST : envoie une requête GET à l'URI principale du site et
+               renvoie une liste d'une seule mesure, datée de
+               horodatage :
+               - réponse 2xx ou 3xx : verdict OK ; réponse 4xx ou 5xx :
+                 verdict KO (RM-03). Dans les deux cas, la mesure
+                 contient la durée jusqu'à la première réponse et le
+                 code HTTP en diagnostic ;
+               - aucune réponse (nom introuvable, connexion refusée,
+                 erreur TLS, délai dépassé, schéma non pris en charge,
+                 URI mal formée) : verdict KO, durée None, diagnostic
+                 donnant la nature de l'erreur.
+               Ne modifie ni site ni les autres paramètres.
         """
         try:
             code, duree_s = self.__envoyer_get(
@@ -70,7 +79,10 @@ class TesteurHttp(Testeur):
         réception de la première réponse (Q-03). Les erreurs réseau
         sont propagées sous forme d'exceptions.
         """
-        parties = urlsplit(uri)
+        try:
+            parties = urlsplit(uri)
+        except ValueError as erreur:
+            raise InvalidURL(f"URI invalide ({erreur})") from erreur
         chemin = parties.path or "/"
         if parties.query:
             chemin = chemin + "?" + parties.query
@@ -147,6 +159,16 @@ if __name__ == "__main__":
     print("Scénario : nom de domaine inexistant (critère 7)")
     attendu = "nom de domaine introuvable"
     obtenu = tester("https://site-inexistant.invalid").diagnostic
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : adresse IPv6 mal formée : mesure KO, pas d'exception")
+    attendu = (Verdict.KO,
+               "connexion impossible : URI invalide (Invalid IPv6 URL)")
+    mesure_ipv6 = tester("http://[::1")
+    obtenu = (mesure_ipv6.verdict, mesure_ipv6.diagnostic)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
