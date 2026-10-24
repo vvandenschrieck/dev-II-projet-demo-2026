@@ -56,12 +56,12 @@ if __name__ == "__main__":
 
     print("Scénario : modifier la liste transmise ne modifie pas la "
           "batterie")
-    mesures_envoyees = [mesure_ok]
-    autre_batterie = BatterieTests(instant)
-    autre_batterie.ajouter(mesures_envoyees)
-    mesures_envoyees.append(mesure_ko)
+    mesures_a_encoder = [mesure_ok]
+    batterie_2 = BatterieTests(instant)
+    batterie_2.ajouter(mesures_a_encoder)
+    mesures_a_encoder.append(mesure_ko)
     attendu = (mesure_ok,)
-    obtenu = autre_batterie.mesures
+    obtenu = batterie_2.mesures
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
