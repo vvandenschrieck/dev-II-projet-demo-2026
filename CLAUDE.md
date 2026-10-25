@@ -34,10 +34,12 @@ Règles :
 ```
 main.py                 # point d'assemblage : crée testeurs, configuration, registre,
                         #   puis lance l'interface choisie
+essais_reels.py         # série de tests manuels sur de vrais sites (voir « Tests manuels »)
 moniteur/
   domaine/              # classes du diagramme (Site, RegistreSites, BatterieTests, Mesure,
                         #   Testeur, ConfigurationTests, énumérations) — aucun accès réseau
-  testeurs/             # testeurs concrets (TesteurHttp) — seuls à accéder au réseau
+  testeurs/             # testeurs concrets (TesteurIcmp, TesteurTcp, TesteurHttp)
+                        #   — seuls à accéder au réseau
   interface/
     tui_simple.py       # menus en print() / input()
     tui_textual.py      # interface Textual
@@ -71,7 +73,7 @@ requirements.txt        # textual
 - `Mesure` et `ConfigurationTests` : `@dataclass(frozen=True)`.
 - Le domaine n'importe jamais `testeurs/` ni `interface/`. L'interface importe le domaine,
   jamais l'inverse.
-- Aucun `print()` ni `input()` hors de `interface/`, sauf dans les blocs de tests manuels.
+- Aucun `print()` ni `input()` hors de `interface/`, sauf dans les blocs de tests manuels et dans `essais_reels.py`.
 - Aucun appel direct à `datetime.now()` dans le domaine : l'horloge est passée en paramètre.
 - Refus métier (nom en double, URI vide) : lever `ValueError` avec un message clair.
   Un site injoignable n'est pas une erreur : c'est une mesure KO.
@@ -131,12 +133,16 @@ requirements.txt        # textual
         attendu : ValueError
         obtenu  : ValueError
         → OK
-- Les `print()` sont autorisés dans ce bloc uniquement.
+- Les `print()` sont autorisés dans ces blocs et dans `essais_reels.py` uniquement.
 - Les scénarios du domaine n'accèdent jamais au réseau : utiliser un faux testeur
   (sous-classe de `Testeur` qui renvoie des mesures fixées) et une fausse horloge,
   définis dans le bloc de test.
-- `TesteurHttp` se teste contre un serveur local (`http.server` lancé dans le bloc de test),
-  jamais contre des sites réels.
+- Les testeurs peuvent aussi se vérifier contre des serveurs locaux (sockets, `http.server`)
+  lancés dans le bloc de test.
+- Les essais sur de vrais sites forment une série à part, `essais_reels.py` (à la racine),
+  lancée depuis la racine : `python essais_reels.py`. Elle commence par vérifier que le
+  réseau a l'air correct et s'arrête sinon. Aucun autre module ne la lance.
+  **Toujours demander l'accord de l'enseignante avant de l'exécuter.**
 - Les interfaces se vérifient à la main, en suivant les critères d'acceptation de la page MVP.
 - Lancer les tests manuels existants des modules modifiés avant chaque commit.
 
