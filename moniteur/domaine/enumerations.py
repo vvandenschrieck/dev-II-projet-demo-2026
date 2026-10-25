@@ -1,4 +1,4 @@
-"""Énumérations du domaine : couche, verdict d'une mesure, statut d'un site.
+"""Énumérations du domaine : couche, verdict, statuts d'un site.
 
 Ces ensembles fermés de valeurs viennent du diagramme de classes.
 """
@@ -43,12 +43,24 @@ class Verdict(Enum):
 class StatutDisponibilite(Enum):
     """Statut de disponibilité d'un site, calculé sur sa dernière batterie.
 
-    INCONNU tant que le site n'a jamais été testé (RM-03, RM-06,
-    page MVP section 2.1).
+    INCONNU tant que le site n'a jamais été testé ou que sa dernière
+    batterie n'a aucune mesure (RM-03, RM-06, page MVP section 2.1).
     """
 
     DISPONIBLE = auto()
     INDISPONIBLE = auto()
+    INCONNU = auto()
+
+
+class StatutPerformance(Enum):
+    """Statut de performance d'un site, calculé sur ses dernières batteries.
+
+    NORMALES ou DEGRADEES selon les conditions de RM-08. INCONNU quand
+    aucune mesure ne permet de conclure.
+    """
+
+    NORMALES = auto()
+    DEGRADEES = auto()
     INCONNU = auto()
 
 
