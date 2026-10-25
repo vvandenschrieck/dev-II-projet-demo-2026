@@ -27,7 +27,18 @@ class TesteurHttp(Testeur):
     un succès (Q-03). La durée mesurée s'arrête à la première réponse du
     serveur. Le code HTTP est conservé en diagnostic (page MVP,
     section 2.1).
+
+    INVARIANT : la couche testée est toujours L7.
     """
+
+    @property
+    def couche(self) -> Couche:
+        """Donne la couche testée.
+
+        PRE : aucune.
+        POST : renvoie Couche.L7. Ne modifie rien.
+        """
+        return Couche.L7
 
     def executer(
         self, site: Site, timeout_s: float, horodatage: datetime
@@ -39,8 +50,8 @@ class TesteurHttp(Testeur):
 
         PRE : timeout_s > 0.
         POST : envoie une requête GET à l'URI principale du site et
-               renvoie une liste d'une seule mesure, datée de
-               horodatage :
+               renvoie une liste d'une seule mesure, de couche L7 et
+               datée de horodatage :
                - réponse 2xx ou 3xx : verdict OK ; réponse 4xx ou 5xx :
                  verdict KO (RM-03). Dans les deux cas, la mesure
                  contient la durée jusqu'à la première réponse et le
@@ -60,7 +71,7 @@ class TesteurHttp(Testeur):
             else:
                 verdict = Verdict.KO
             return [
-                Mesure(horodatage, Couche.L7, verdict, duree_s, str(code))
+                Mesure(horodatage, self.couche, verdict, duree_s, str(code))
             ]
         except TimeoutError:
             diagnostic = DELAI_DEPASSE
@@ -72,7 +83,9 @@ class TesteurHttp(Testeur):
             diagnostic = "erreur TLS"
         except (OSError, HTTPException) as erreur:
             diagnostic = f"connexion impossible : {erreur}"
-        return [Mesure(horodatage, Couche.L7, Verdict.KO, None, diagnostic)]
+        return [
+            Mesure(horodatage, self.couche, Verdict.KO, None, diagnostic)
+        ]
 
     def __envoyer_get(self, uri: str, timeout_s: float) -> tuple[int, float]:
         """Envoie une requête GET et renvoie le code HTTP et la durée.

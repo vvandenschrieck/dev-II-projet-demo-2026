@@ -99,11 +99,16 @@ if __name__ == "__main__":
     class FauxTesteur(Testeur):
         """Testeur de test : renvoie toujours une mesure OK, sans réseau."""
 
+        @property
+        def couche(self) -> Couche:
+            """Donne la couche simulée (L7)."""
+            return Couche.L7
+
         def executer(
             self, site: Site, timeout_s: float, horodatage: datetime
         ) -> list[Mesure]:
             """Renvoie une seule mesure OK, datée de l'horodatage reçu."""
-            return [Mesure(horodatage, Couche.L7, Verdict.OK, 0.1, "200")]
+            return [Mesure(horodatage, self.couche, Verdict.OK, 0.1, "200")]
 
     registre = RegistreSites()
     registre.ajouter_site("ClientABC", "clientabc.be")

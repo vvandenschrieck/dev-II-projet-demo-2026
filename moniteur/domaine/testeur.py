@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from moniteur.domaine.enumerations import Couche
 from moniteur.domaine.mesure import Mesure
 
 if TYPE_CHECKING:
@@ -29,7 +30,22 @@ class Testeur(ABC):
     Les testeurs concrets, qui accèdent au réseau, se trouvent dans le
     paquet moniteur.testeurs. Le domaine ne connaît que cette
     abstraction.
+
+    Chaque testeur déclare la couche qu'il teste (couche) : le site s'en
+    sert pour appliquer les tests dans l'ordre L3, L4, L7 (EF-03.2).
+
+    INVARIANT : la couche d'un testeur ne change jamais.
     """
+
+    @property
+    @abstractmethod
+    def couche(self) -> Couche:
+        """Donne la couche testée par ce testeur.
+
+        PRE : aucune.
+        POST : renvoie la couche testée, toujours la même. Ne modifie
+               rien.
+        """
 
     @abstractmethod
     def executer(
@@ -43,7 +59,8 @@ class Testeur(ABC):
 
         PRE : timeout_s > 0.
         POST : renvoie la liste des mesures obtenues, chacune datée de
-               horodatage. Un site injoignable ne provoque pas
-               d'exception : il donne une mesure de verdict KO.
+               horodatage et portant la couche du testeur. Un site
+               injoignable ne provoque pas d'exception : il donne une
+               mesure de verdict KO.
                Ne modifie ni site ni les autres paramètres.
         """

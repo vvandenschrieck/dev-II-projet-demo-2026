@@ -164,12 +164,17 @@ if __name__ == "__main__":
             self.__diagnostic = diagnostic
             self.delais_recus: list[float] = []
 
+        @property
+        def couche(self) -> Couche:
+            """Donne la couche simulée (L7)."""
+            return Couche.L7
+
         def executer(
             self, site: Site, timeout_s: float, horodatage: datetime
         ) -> list[Mesure]:
             """Renvoie une seule mesure, datée de l'horodatage reçu."""
             self.delais_recus.append(timeout_s)
-            return [Mesure(horodatage, Couche.L7, self.__verdict, 0.1,
+            return [Mesure(horodatage, self.couche, self.__verdict, 0.1,
                            self.__diagnostic)]
 
     print("Scénario : URI sans schéma : « https:// » ajouté par défaut")
@@ -214,6 +219,11 @@ if __name__ == "__main__":
 
     class TesteurVide(Testeur):
         """Testeur de test : ne renvoie aucune mesure, sans réseau."""
+
+        @property
+        def couche(self) -> Couche:
+            """Donne la couche simulée (L7)."""
+            return Couche.L7
 
         def executer(
             self, site: Site, timeout_s: float, horodatage: datetime
