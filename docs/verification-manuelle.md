@@ -49,6 +49,7 @@ Pour chaque scénario, cochez la case de l'interface vérifiée.
 | 15 | Tableau vide (Textual) | Au démarrage, appuyer sur `t` | Message « Aucun site à tester. », sans erreur | — | ☐ |
 | 16 | Crochets dans un nom (Textual) | `[red]Test` / `www.google.com` | Le nom s'affiche tel quel, sans couleur parasite | — | ☐ |
 | 17 | Tests automatiques (Textual) | Lancer `main.py --demo --interface textual` et ne rien faire pendant environ une minute | Les sites jamais testés sont testés automatiquement, un par un (messages « Test automatique de … en cours… », lignes mises à jour au fur et à mesure). Un site testé à la main n'est retesté qu'au bout de 15 minutes | — | ☐ |
+| 18 | Surveillance (TUI simple) | Lancer `main.py --demo`, choisir `4` et attendre | Les sites jamais testés sont testés un par un (« Test automatique de … en cours… »), le tableau est réaffiché après chaque test ; Ctrl+C affiche « Surveillance arrêtée. » et ramène au menu | ☐ | — |
 
 ## Sites d'essai préchargés
 
@@ -59,8 +60,9 @@ registre contient alors `ClientABC`, `Absent`, `Fantome`, `Bloque`,
 (un par un, ou tous ensemble). Ces sites sont ceux des scénarios 4 à 11 (le scénario 10 utilise `Local`).
 Pour les scénarios d'ajout et de refus (1 à 3 et 12), lancez sans `--demo`.
 Avec Textual, les sites jamais testés sont testés automatiquement dans la minute
-qui suit le lancement (voir le dernier scénario) : ils contactent donc de vrais sites
-sans action de votre part.
+qui suit le lancement : ils contactent donc de vrais sites sans action de votre
+part. Dans la TUI simple, cela n'arrive que si vous choisissez `4. Surveiller`
+(voir les deux derniers scénarios).
 
 ## Alternative locale pour le scénario 8
 

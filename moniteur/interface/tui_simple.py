@@ -1,10 +1,12 @@
 """Interface texte simple : menus en print() et input().
 
 Cette interface affiche l'état des sites, puis propose un menu pour
-ajouter un site, tester un site ou tester tous les sites. L'écran est
-réaffiché après chaque action (page MVP, section 2.2).
+ajouter un site, tester un site, tester tous les sites ou surveiller les
+sites. L'écran est réaffiché après chaque action (page MVP, section 2.2)
+et, pendant la surveillance, après chaque test automatique (EF-02.3).
 """
 
+import time
 from collections.abc import Callable
 from datetime import datetime
 
@@ -35,22 +37,27 @@ FORMAT_HORODATAGE = "%d/%m/%Y %H:%M:%S"
 # Ajouté à l'horodatage d'un site dont les statuts datent de trop longtemps.
 MARQUE_ANCIEN = " (ancien)"
 
+# Délai, en secondes, entre deux vérifications des échéances de test.
+INTERVALLE_REVEIL_S = 60
+
 
 def lancer(
     registre: RegistreSites,
     testeurs: list[Testeur],
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
+    frequence_min: int,
 ) -> None:
     """Affiche les sites et le menu jusqu'à ce que l'utilisatrice quitte.
 
-    registre, testeurs, config et horloge sont créés par main.py et
-    transmis tels quels au domaine.
+    registre, testeurs, config, horloge et frequence_min sont créés par
+    main.py et transmis tels quels au domaine.
 
     PRE : config.timeout_s > 0.
     POST : affiche l'état des sites puis le menu après chaque action
            (page MVP, section 2.2), jusqu'au choix « 0 » ou jusqu'à la
            fin de la saisie (Ctrl+D, Ctrl+C), puis affiche « Au revoir. ».
+           Le choix « 4 » lance la surveillance (voir surveiller).
            Modifie registre (sites ajoutés) et les sites testés
            (nouvelles batteries).
            Exception ValueError : si testeurs est vide et qu'un site est
@@ -66,6 +73,10 @@ def lancer(
                 tester_site(registre, testeurs, config, horloge)
             elif choix == "3":
                 tester_tous_les_sites(registre, testeurs, config, horloge)
+            elif choix == "4":
+                surveiller(
+                    registre, testeurs, config, horloge, frequence_min
+                )
             elif choix == "0":
                 break
             else:
@@ -185,6 +196,7 @@ def demander_choix() -> str:
     print("1. Ajouter un site")
     print("2. Tester un site")
     print("3. Tester tous les sites")
+    print("4. Surveiller (tests automatiques)")
     print("0. Quitter")
     return input("Votre choix : ").strip()
 
@@ -255,3 +267,67 @@ def tester_tous_les_sites(
         site.lancer_batterie(
             testeurs, config, Declenchement.MANUEL, horloge
         )
+
+
+def tester_echeances(
+    registre: RegistreSites,
+    testeurs: list[Testeur],
+    config: ConfigurationTests,
+    horloge: Callable[[], datetime],
+    frequence_min: int,
+) -> int:
+    """Teste les sites dont l'échéance est atteinte (EF-03.7).
+
+    PRE : config.timeout_s > 0.
+    POST : pour chaque site de registre qui n'a jamais été testé ou dont
+           le dernier test date d'au moins frequence_min minutes, affiche
+           un message, lance une batterie PERIODIQUE puis réaffiche
+           l'état des sites (EF-02.3). Renvoie le nombre de sites testés.
+           Exception ValueError : si testeurs est vide et qu'un site est
+           testé.
+    """
+    nombre = 0
+    for site in registre.sites:
+        if site.est_a_tester(frequence_min, horloge):
+            print(f"Test automatique de « {site.nom} » en cours...")
+            site.lancer_batterie(
+                testeurs, config, Declenchement.PERIODIQUE, horloge
+            )
+            afficher_sites(registre, config, horloge)
+            nombre += 1
+    return nombre
+
+
+def surveiller(
+    registre: RegistreSites,
+    testeurs: list[Testeur],
+    config: ConfigurationTests,
+    horloge: Callable[[], datetime],
+    frequence_min: int,
+) -> None:
+    """Teste automatiquement les sites jusqu'à Ctrl+C (EF-03.7).
+
+    Toutes les INTERVALLE_REVEIL_S secondes, teste les sites dont
+    l'échéance est atteinte. Le menu n'est pas utilisable pendant la
+    surveillance.
+
+    PRE : config.timeout_s > 0.
+    POST : affiche l'état des sites, puis répète tester_echeances toutes
+           les INTERVALLE_REVEIL_S secondes jusqu'à ce que l'utilisatrice
+           tape Ctrl+C. Affiche alors « Surveillance arrêtée. » et rend
+           la main au menu. Modifie les sites testés (nouvelles
+           batteries).
+           Exception ValueError : si testeurs est vide et qu'un site est
+           testé.
+    """
+    print(f"Surveillance en cours : un test tous les {frequence_min} "
+          "minutes par site (Ctrl+C pour arrêter).")
+    try:
+        while True:
+            tester_echeances(
+                registre, testeurs, config, horloge, frequence_min
+            )
+            time.sleep(INTERVALLE_REVEIL_S)
+    except KeyboardInterrupt:
+        print()
+        print("Surveillance arrêtée.")

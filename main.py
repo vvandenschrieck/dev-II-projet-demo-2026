@@ -107,7 +107,9 @@ def main() -> None:
         precharger_sites(registre)
     if arguments.interface == "simple":
         from moniteur.interface import tui_simple
-        tui_simple.lancer(registre, testeurs, config, datetime.now)
+        tui_simple.lancer(
+            registre, testeurs, config, datetime.now, FREQUENCE_MIN
+        )
     else:
         # textual n'est importé que si cette interface est choisie : la
         # TUI simple fonctionne donc même sans textual installé.
