@@ -153,6 +153,28 @@ class Site:
             return StatutPerformance.DEGRADEES
         return StatutPerformance.NORMALES
 
+    def statut_est_ancien(
+        self, config: ConfigurationTests, horloge: Callable[[], datetime]
+    ) -> bool:
+        """Dit si les statuts du site datent de trop longtemps.
+
+        Les statuts de disponibilité et de performance reposent sur la
+        dernière batterie : ils vieillissent avec elle. Le seuil est
+        config.age_max_statut_min.
+
+        PRE : aucune.
+        POST : renvoie True si la dernière batterie date de strictement
+               plus de config.age_max_statut_min minutes avant l'instant
+               donné par horloge (appelée une fois). Renvoie False si
+               elle est plus récente, ou si le site n'a jamais été testé
+               (son statut est alors INCONNU). Ne modifie rien.
+        """
+        derniere = self.derniere_batterie
+        if derniere is None:
+            return False
+        age = horloge() - derniere.horodatage
+        return age > timedelta(minutes=config.age_max_statut_min)
+
     def lancer_batterie(
         self,
         testeurs: list[Testeur],
@@ -583,6 +605,43 @@ if __name__ == "__main__":
     )
     attendu = StatutPerformance.NORMALES
     obtenu = site_fenetre.statut_performance(CONFIG)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_age = Site("ClientABC", "clientabc.be")
+
+    print("Scénario : site jamais testé : le statut n'est pas ancien")
+    attendu = False
+    obtenu = site_age.statut_est_ancien(CONFIG, fausse_horloge)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_age.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200")],
+        CONFIG,
+        horloge_fixee(INSTANT - timedelta(minutes=30)),
+    )
+    print("Scénario : dernier test il y a exactement 30 minutes : pas "
+          "ancien")
+    attendu = False
+    obtenu = site_age.statut_est_ancien(CONFIG, fausse_horloge)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_age.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200")],
+        CONFIG,
+        horloge_fixee(INSTANT - timedelta(minutes=31)),
+    )
+    print("Scénario : dernier test il y a 31 minutes : statut ancien")
+    attendu = True
+    obtenu = site_age.statut_est_ancien(CONFIG, fausse_horloge)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
