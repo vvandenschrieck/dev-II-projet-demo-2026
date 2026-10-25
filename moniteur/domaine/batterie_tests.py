@@ -58,11 +58,13 @@ class BatterieTests:
 
 
 if __name__ == "__main__":
-    from moniteur.domaine.enumerations import Verdict
+    from moniteur.domaine.enumerations import Couche, Verdict
 
     instant = datetime(2026, 10, 17, 14, 30)
-    mesure_ok = Mesure(instant, Verdict.OK, 0.12, "200")
-    mesure_ko = Mesure(instant, Verdict.KO, None, "délai dépassé")
+    mesure_ok = Mesure(instant, Couche.L7, Verdict.OK, 0.12, "200")
+    mesure_ko = Mesure(
+        instant, Couche.L7, Verdict.KO, None, "délai dépassé"
+    )
     batterie = BatterieTests(instant)
 
     print("Scénario : la propriété mesures renvoie un tuple")

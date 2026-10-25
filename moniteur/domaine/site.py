@@ -141,6 +141,7 @@ class Site:
 
 
 if __name__ == "__main__":
+    from moniteur.domaine.enumerations import Couche
     from moniteur.domaine.mesure import Mesure
 
     INSTANT = datetime(2026, 10, 17, 14, 30)
@@ -168,7 +169,7 @@ if __name__ == "__main__":
         ) -> list[Mesure]:
             """Renvoie une seule mesure, datée de l'horodatage reçu."""
             self.delais_recus.append(timeout_s)
-            return [Mesure(horodatage, self.__verdict, 0.1,
+            return [Mesure(horodatage, Couche.L7, self.__verdict, 0.1,
                            self.__diagnostic)]
 
     print("Scénario : URI sans schéma : « https:// » ajouté par défaut")

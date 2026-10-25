@@ -82,7 +82,11 @@ if __name__ == "__main__":
     from datetime import datetime
 
     from moniteur.domaine.configuration_tests import ConfigurationTests
-    from moniteur.domaine.enumerations import StatutDisponibilite, Verdict
+    from moniteur.domaine.enumerations import (
+        Couche,
+        StatutDisponibilite,
+        Verdict,
+    )
     from moniteur.domaine.mesure import Mesure
     from moniteur.domaine.testeur import Testeur
 
@@ -99,7 +103,7 @@ if __name__ == "__main__":
             self, site: Site, timeout_s: float, horodatage: datetime
         ) -> list[Mesure]:
             """Renvoie une seule mesure OK, datée de l'horodatage reçu."""
-            return [Mesure(horodatage, Verdict.OK, 0.1, "200")]
+            return [Mesure(horodatage, Couche.L7, Verdict.OK, 0.1, "200")]
 
     registre = RegistreSites()
     registre.ajouter_site("ClientABC", "clientabc.be")

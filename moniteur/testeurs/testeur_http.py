@@ -12,7 +12,7 @@ from http.client import (
 )
 from urllib.parse import urlsplit
 
-from moniteur.domaine.enumerations import Verdict
+from moniteur.domaine.enumerations import Couche, Verdict
 from moniteur.domaine.mesure import Mesure
 from moniteur.domaine.site import Site
 from moniteur.domaine.testeur import Testeur
@@ -59,7 +59,9 @@ class TesteurHttp(Testeur):
                 verdict = Verdict.OK
             else:
                 verdict = Verdict.KO
-            return [Mesure(horodatage, verdict, duree_s, str(code))]
+            return [
+                Mesure(horodatage, Couche.L7, verdict, duree_s, str(code))
+            ]
         except TimeoutError:
             diagnostic = DELAI_DEPASSE
         except socket.gaierror:
@@ -70,7 +72,7 @@ class TesteurHttp(Testeur):
             diagnostic = "erreur TLS"
         except (OSError, HTTPException) as erreur:
             diagnostic = f"connexion impossible : {erreur}"
-        return [Mesure(horodatage, Verdict.KO, None, diagnostic)]
+        return [Mesure(horodatage, Couche.L7, Verdict.KO, None, diagnostic)]
 
     def __envoyer_get(self, uri: str, timeout_s: float) -> tuple[int, float]:
         """Envoie une requête GET et renvoie le code HTTP et la durée.
