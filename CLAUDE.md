@@ -159,7 +159,8 @@ requirements.txt        # textual
    Le corps du message référence les issues GitHub concernées (une issue par
    exigence : EF, F, ENF, Q, L) sous la forme `Réf. #15 (EF-03.2)`. Retrouver
    les numéros avec `gh issue list --state all`. Ne citer que les exigences
-   réellement touchées. Ne jamais écrire `Closes #n` : c'est l'enseignante qui
-   ferme les issues. Les règles métier (RM-xx) n'ont pas d'issue : les citer
-   dans le texte seulement.
+   réellement touchées. N'écrire `Closes #n` (qui ferme l'issue au push) que
+   sur demande explicite de l'enseignante, qui juge si l'exigence est
+   entièrement satisfaite. Les règles métier (RM-xx) n'ont pas d'issue : les
+   citer dans le texte seulement.
 6. Signaler toute incohérence repérée dans la documentation, sans la corriger.
