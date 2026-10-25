@@ -139,11 +139,8 @@ class Site:
                deux moyennes a pu être calculée, et INCONNU si aucune
                mesure n'a de durée. Ne modifie rien.
         """
-        batteries = self.__batteries_recentes(config.fenetre_performance_min)
-        rtt_moyen_s = self.__moyenne([self.__rtt(b) for b in batteries])
-        chargement_moyen_s = self.__moyenne(
-            [self.__chargement(b) for b in batteries]
-        )
+        rtt_moyen_s = self.rtt_moyen(config)
+        chargement_moyen_s = self.chargement_moyen(config)
         if rtt_moyen_s is None and chargement_moyen_s is None:
             return StatutPerformance.INCONNU
         if rtt_moyen_s is not None and rtt_moyen_s > config.seuil_l3_s:
@@ -152,6 +149,73 @@ class Site:
                 and chargement_moyen_s > config.seuil_l7_s):
             return StatutPerformance.DEGRADEES
         return StatutPerformance.NORMALES
+
+    def rtt_moyen(self, config: ConfigurationTests) -> float | None:
+        """Donne le RTT moyen des batteries de la dernière fenêtre.
+
+        Le RTT d'une batterie est la durée de sa mesure L3 ou, à défaut,
+        de sa mesure L4. La fenêtre est celle de statut_performance.
+
+        PRE : aucune.
+        POST : renvoie le RTT moyen, en secondes, ou None si aucune
+               batterie de la fenêtre n'a de RTT. Ne modifie rien.
+        """
+        batteries = self.__batteries_recentes(config.fenetre_performance_min)
+        return self.__moyenne([self.__rtt(b) for b in batteries])
+
+    def ecart_rtt(self, config: ConfigurationTests) -> float | None:
+        """Compare le RTT moyen de la fenêtre à la moyenne globale.
+
+        La moyenne globale porte sur toutes les batteries du site. La
+        comparaison n'a de sens que s'il existe des batteries plus
+        anciennes que la fenêtre.
+
+        PRE : aucune.
+        POST : renvoie l'écart relatif (RTT de la fenêtre - moyenne
+               globale) / moyenne globale, par exemple 0.5 pour 50 %
+               plus lent. Renvoie None si toutes les batteries du site
+               sont dans la fenêtre, si l'une des moyennes est inconnue
+               ou si la moyenne globale est nulle. Ne modifie rien.
+        """
+        if not self.__a_des_batteries_hors_fenetre(config):
+            return None
+        globale = self.__moyenne([self.__rtt(b) for b in self.__historique])
+        return self.__ecart(self.rtt_moyen(config), globale)
+
+    def chargement_moyen(self, config: ConfigurationTests) -> float | None:
+        """Donne le temps de chargement moyen de la dernière fenêtre.
+
+        Il s'agit des mesures L7 des batteries de la fenêtre de
+        statut_performance.
+
+        PRE : aucune.
+        POST : renvoie le temps de chargement moyen, en secondes, ou
+               None si aucune mesure L7 de la fenêtre n'a de durée. Ne
+               modifie rien.
+        """
+        batteries = self.__batteries_recentes(config.fenetre_performance_min)
+        return self.__moyenne([self.__chargement(b) for b in batteries])
+
+    def ecart_chargement(self, config: ConfigurationTests) -> float | None:
+        """Compare le chargement moyen de la fenêtre à la moyenne globale.
+
+        La moyenne globale porte sur toutes les batteries du site. La
+        comparaison n'a de sens que s'il existe des batteries plus
+        anciennes que la fenêtre.
+
+        PRE : aucune.
+        POST : renvoie l'écart relatif (chargement de la fenêtre -
+               moyenne globale) / moyenne globale. Renvoie None si
+               toutes les batteries du site sont dans la fenêtre, si
+               l'une des moyennes est inconnue ou si la moyenne globale
+               est nulle. Ne modifie rien.
+        """
+        if not self.__a_des_batteries_hors_fenetre(config):
+            return None
+        globale = self.__moyenne(
+            [self.__chargement(b) for b in self.__historique]
+        )
+        return self.__ecart(self.chargement_moyen(config), globale)
 
     def statut_est_ancien(
         self, config: ConfigurationTests, horloge: Callable[[], datetime]
@@ -248,6 +312,25 @@ class Site:
             mesure.duree_s for mesure in batterie.mesures
             if mesure.couche == Couche.L7
         ])
+
+    def __a_des_batteries_hors_fenetre(
+        self, config: ConfigurationTests
+    ) -> bool:
+        """Dit si le site a des batteries plus anciennes que la fenêtre."""
+        recentes = self.__batteries_recentes(config.fenetre_performance_min)
+        return len(recentes) < len(self.__historique)
+
+    def __ecart(
+        self, valeur: float | None, reference: float | None
+    ) -> float | None:
+        """Renvoie l'écart relatif de valeur par rapport à reference.
+
+        Renvoie None si l'une des deux est inconnue ou si reference est
+        nulle.
+        """
+        if valeur is None or reference is None or reference == 0:
+            return None
+        return (valeur - reference) / reference
 
     def __moyenne(self, valeurs: list[float | None]) -> float | None:
         """Renvoie la moyenne des valeurs connues, ou None s'il n'y en a."""
@@ -642,6 +725,66 @@ if __name__ == "__main__":
     print("Scénario : dernier test il y a 31 minutes : statut ancien")
     attendu = True
     obtenu = site_age.statut_est_ancien(CONFIG, fausse_horloge)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : site jamais testé : ni moyenne ni écart")
+    neuf = Site("ClientABC", "clientabc.be")
+    attendu = (None, None, None, None)
+    obtenu = (neuf.rtt_moyen(CONFIG), neuf.ecart_rtt(CONFIG),
+              neuf.chargement_moyen(CONFIG), neuf.ecart_chargement(CONFIG))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_ecart = Site("ClientABC", "clientabc.be")
+    site_ecart.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.1),
+         FauxTesteur(Verdict.OK, "200", Couche.L7, 0.2)],
+        CONFIG,
+        horloge_fixee(INSTANT - timedelta(minutes=45)),
+    )
+    site_ecart.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.3),
+         FauxTesteur(Verdict.OK, "200", Couche.L7, 0.6)],
+        CONFIG,
+        fausse_horloge,
+    )
+    site_recent = Site("ClientABC", "clientabc.be")
+    for _ in range(2):
+        site_recent.lancer_batterie(
+            [FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.1)],
+            CONFIG,
+            fausse_horloge,
+        )
+    print("Scénario : toutes les batteries dans la fenêtre : pas "
+          "d'écart à comparer")
+    attendu = (0.1, None)
+    obtenu = (round(site_recent.rtt_moyen(CONFIG), 6),
+              site_recent.ecart_rtt(CONFIG))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : les moyennes de la fenêtre ignorent la batterie "
+          "vieille de 45 minutes")
+    attendu = (0.3, 0.6)
+    obtenu = (round(site_ecart.rtt_moyen(CONFIG), 6),
+              round(site_ecart.chargement_moyen(CONFIG), 6))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : écart par rapport à la moyenne globale : +50 % "
+          "(0,3 contre 0,2 ; 0,6 contre 0,4)")
+    attendu = (0.5, 0.5)
+    obtenu = (round(site_ecart.ecart_rtt(CONFIG), 6),
+              round(site_ecart.ecart_chargement(CONFIG), 6))
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")

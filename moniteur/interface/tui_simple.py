@@ -9,7 +9,10 @@ from collections.abc import Callable
 from datetime import datetime
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
-from moniteur.domaine.enumerations import StatutDisponibilite
+from moniteur.domaine.enumerations import (
+    StatutDisponibilite,
+    StatutPerformance,
+)
 from moniteur.domaine.registre_sites import RegistreSites
 from moniteur.domaine.site import Site
 from moniteur.domaine.testeur import Testeur
@@ -27,6 +30,9 @@ COULEURS = {
 }
 
 FORMAT_HORODATAGE = "%d/%m/%Y %H:%M:%S"
+
+# Ajouté à l'horodatage d'un site dont les statuts datent de trop longtemps.
+MARQUE_ANCIEN = " (ancien)"
 
 
 def lancer(
@@ -51,7 +57,7 @@ def lancer(
     """
     try:
         while True:
-            afficher_sites(registre)
+            afficher_sites(registre, config, horloge)
             choix = demander_choix()
             if choix == "1":
                 ajouter_site(registre)
@@ -68,8 +74,36 @@ def lancer(
     print("Au revoir.")
 
 
-def afficher_sites(registre: RegistreSites) -> None:
-    """Affiche la liste des sites avec leur statut (EF-02.1).
+def formater_duree(duree_s: float | None, ecart: float | None) -> str:
+    """Formate une durée en millisecondes, suivie de son écart en %.
+
+    PRE : aucune.
+    POST : renvoie « - » si duree_s est None. Sinon renvoie la durée en
+           millisecondes (deux décimales sous 1 ms, une sous 10 ms,
+           aucune au-delà), suivie de l'écart entre parenthèses
+           (« 85 ms (+37 %) »), ou de « (-) » si ecart est None. Ne
+           modifie rien.
+    """
+    if duree_s is None:
+        return "-"
+    ms = duree_s * 1000
+    if ms < 1:
+        texte = f"{ms:.2f} ms"
+    elif ms < 10:
+        texte = f"{ms:.1f} ms"
+    else:
+        texte = f"{ms:.0f} ms"
+    if ecart is None:
+        return f"{texte} (-)"
+    return f"{texte} ({ecart * 100:+.0f} %)"
+
+
+def afficher_sites(
+    registre: RegistreSites,
+    config: ConfigurationTests,
+    horloge: Callable[[], datetime],
+) -> None:
+    """Affiche la liste des sites avec leurs statuts (EF-02.1).
 
     PRE : aucune.
     POST : affiche un titre, puis un message si le registre est vide, ou
@@ -81,21 +115,33 @@ def afficher_sites(registre: RegistreSites) -> None:
     if len(registre.sites) == 0:
         print("Aucun site. Ajoutez-en un avec le choix 1.")
         return
-    print(f"{'Nom':<15} {'Statut':<12} {'Dernier test':<19} "
-          f"{'Diagnostic':<46} URI")
+    print(f"{'Nom':<15} {'Statut':<12} {'Performance':<11} "
+          f"{'RTT L3/L4':<16} {'Chargement L7':<16} "
+          f"{'Dernier test':<28} {'Diagnostic':<46} URI")
     for site in registre.sites:
-        afficher_site(site)
+        afficher_site(site, config, horloge)
 
 
-def afficher_site(site: Site) -> None:
+def afficher_site(
+    site: Site,
+    config: ConfigurationTests,
+    horloge: Callable[[], datetime],
+) -> None:
     """Affiche une ligne colorée selon le statut du site (EF-02.4).
 
     PRE : aucune.
-    POST : affiche une ligne avec le nom, le statut, l'horodatage du
-           dernier test (EF-02.2), les diagnostics de ses mesures,
-           précédés de leur couche (« L3: 6/6 sondes »), et l'URI
-           principale. Horodatage et diagnostic valent « - » si le site
-           n'a jamais été testé. Ne modifie rien.
+    POST : affiche une ligne avec le nom, les statuts de disponibilité
+           et de performance (EF-02.1), le RTT et le temps de chargement
+           moyens de la dernière fenêtre avec leur écart par rapport à la
+           moyenne globale (« 85 ms (+37 %) »), l'horodatage du dernier test
+           (EF-02.2), les diagnostics de ses mesures, précédés de leur
+           couche (« L3: 6/6 sondes »), et l'URI principale. La couleur
+           suit le statut de disponibilité, mais passe au jaune pour un
+           site disponible aux performances dégradées. L'horodatage est
+           suivi de
+           « (ancien) » si les statuts datent de trop longtemps.
+           Horodatage et diagnostic valent « - » si le site n'a jamais
+           été testé. Ne modifie rien.
     """
     statut = site.statut_disponibilite
     batterie = site.derniere_batterie
@@ -104,14 +150,26 @@ def afficher_site(site: Site) -> None:
         diagnostic = "-"
     else:
         horodatage = batterie.horodatage.strftime(FORMAT_HORODATAGE)
+        if site.statut_est_ancien(config, horloge):
+            horodatage += MARQUE_ANCIEN
         diagnostic = ", ".join(
             f"{mesure.couche.name}: {mesure.diagnostic}"
             for mesure in batterie.mesures
             if mesure.diagnostic is not None
         )
-    ligne = (f"{site.nom:<15} {statut.name:<12} {horodatage:<19} "
+    performance = site.statut_performance(config)
+    couleur = COULEURS[statut]
+    if (statut == StatutDisponibilite.DISPONIBLE
+            and performance == StatutPerformance.DEGRADEES):
+        couleur = JAUNE
+    rtt = formater_duree(site.rtt_moyen(config), site.ecart_rtt(config))
+    chargement = formater_duree(
+        site.chargement_moyen(config), site.ecart_chargement(config)
+    )
+    ligne = (f"{site.nom:<15} {statut.name:<12} {performance.name:<11} "
+             f"{rtt:<16} {chargement:<16} {horodatage:<28} "
              f"{diagnostic:<46} {site.uri_principale}")
-    print(COULEURS[statut] + ligne + REINITIALISER)
+    print(couleur + ligne + REINITIALISER)
 
 
 def demander_choix() -> str:

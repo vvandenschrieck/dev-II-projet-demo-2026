@@ -15,7 +15,10 @@ from textual.markup import escape
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
-from moniteur.domaine.enumerations import StatutDisponibilite
+from moniteur.domaine.enumerations import (
+    StatutDisponibilite,
+    StatutPerformance,
+)
 from moniteur.domaine.registre_sites import RegistreSites
 from moniteur.domaine.site import Site
 from moniteur.domaine.testeur import Testeur
@@ -27,6 +30,33 @@ COULEURS = {
 }
 
 FORMAT_HORODATAGE = "%d/%m/%Y %H:%M:%S"
+
+# Ajouté à l'horodatage d'un site dont les statuts datent de trop longtemps.
+MARQUE_ANCIEN = " (ancien)"
+
+
+def formater_duree(duree_s: float | None, ecart: float | None) -> str:
+    """Formate une durée en millisecondes, suivie de son écart en %.
+
+    PRE : aucune.
+    POST : renvoie « - » si duree_s est None. Sinon renvoie la durée en
+           millisecondes (deux décimales sous 1 ms, une sous 10 ms,
+           aucune au-delà), suivie de l'écart entre parenthèses
+           (« 85 ms (+37 %) »), ou de « (-) » si ecart est None. Ne
+           modifie rien.
+    """
+    if duree_s is None:
+        return "-"
+    ms = duree_s * 1000
+    if ms < 1:
+        texte = f"{ms:.2f} ms"
+    elif ms < 10:
+        texte = f"{ms:.1f} ms"
+    else:
+        texte = f"{ms:.0f} ms"
+    if ecart is None:
+        return f"{texte} (-)"
+    return f"{texte} ({ecart * 100:+.0f} %)"
 
 
 class MoniteurApp(App):
@@ -87,13 +117,14 @@ class MoniteurApp(App):
         """Crée les colonnes du tableau et l'affiche une première fois.
 
         PRE : l'écran a été construit (compose).
-        POST : le tableau a ses cinq colonnes et affiche les sites du
+        POST : le tableau a ses huit colonnes et affiche les sites du
                registre (EF-02.1). Ne modifie ni le registre ni les
                sites.
         """
         tableau = self.query_one(DataTable)
         tableau.add_columns(
-            "Nom", "Statut", "Dernier test", "Diagnostic", "URI"
+            "Nom", "Statut", "Performance", "RTT L3/L4", "Chargement L7",
+            "Dernier test", "Diagnostic", "URI",
         )
         self.__rafraichir()
 
@@ -188,13 +219,14 @@ class MoniteurApp(App):
         """Réaffiche toutes les lignes du tableau (EF-02.1).
 
         La couleur de chaque ligne met en évidence les sites
-        indisponibles ou jamais testés (EF-02.4).
+        indisponibles, jamais testés ou aux performances dégradées
+        (EF-02.4).
         """
         tableau = self.query_one(DataTable)
         ligne_selectionnee = tableau.cursor_row
         tableau.clear()
         for site in self.__registre.sites:
-            couleur = COULEURS[site.statut_disponibilite]
+            couleur = self.__couleur(site)
             cellules = [
                 f"[{couleur}]{escape(texte)}[/]"
                 for texte in self.__decrire(site)
@@ -202,12 +234,29 @@ class MoniteurApp(App):
             tableau.add_row(*cellules, key=site.nom)
         tableau.move_cursor(row=ligne_selectionnee)
 
+    def __couleur(self, site: Site) -> str:
+        """Renvoie la couleur de la ligne d'un site.
+
+        Elle suit le statut de disponibilité, mais passe au jaune pour
+        un site disponible aux performances dégradées.
+        """
+        couleur = COULEURS[site.statut_disponibilite]
+        performance = site.statut_performance(self.__config)
+        if (site.statut_disponibilite == StatutDisponibilite.DISPONIBLE
+                and performance == StatutPerformance.DEGRADEES):
+            couleur = "yellow"
+        return couleur
+
     def __decrire(self, site: Site) -> list[str]:
         """Renvoie les textes des colonnes du tableau pour un site.
 
-        Les colonnes sont le nom, le statut, l'horodatage du dernier
-        test (EF-02.2), les diagnostics des mesures, précédés de leur
-        couche (« L3: 6/6 sondes »), et l'URI principale.
+        Les colonnes sont le nom, les statuts de disponibilité et de
+        performance (EF-02.1), le RTT et le temps de chargement moyens de
+        la dernière fenêtre avec leur écart par rapport à la moyenne
+        globale (« 85 ms (+37 %) »), l'horodatage du dernier test (EF-02.2),
+        suivi de « (ancien) » si les statuts datent de trop longtemps,
+        les diagnostics des mesures, précédés de leur couche
+        (« L3: 6/6 sondes »), et l'URI principale.
         """
         batterie = site.derniere_batterie
         if batterie is None:
@@ -215,6 +264,8 @@ class MoniteurApp(App):
             diagnostic = "-"
         else:
             horodatage = batterie.horodatage.strftime(FORMAT_HORODATAGE)
+            if site.statut_est_ancien(self.__config, self.__horloge):
+                horodatage += MARQUE_ANCIEN
             diagnostic = ", ".join(
                 f"{mesure.couche.name}: {mesure.diagnostic}"
                 for mesure in batterie.mesures
@@ -223,6 +274,14 @@ class MoniteurApp(App):
         return [
             site.nom,
             site.statut_disponibilite.name,
+            site.statut_performance(self.__config).name,
+            formater_duree(
+                site.rtt_moyen(self.__config), site.ecart_rtt(self.__config)
+            ),
+            formater_duree(
+                site.chargement_moyen(self.__config),
+                site.ecart_chargement(self.__config),
+            ),
             horodatage,
             diagnostic,
             site.uri_principale,
