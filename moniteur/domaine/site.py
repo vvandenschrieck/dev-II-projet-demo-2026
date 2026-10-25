@@ -1,13 +1,14 @@
 """Site : site web surveillé, avec l'historique de ses batteries."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from moniteur.domaine.batterie_tests import BatterieTests
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.enumerations import (
     Couche,
     StatutDisponibilite,
+    StatutPerformance,
     Verdict,
 )
 from moniteur.domaine.testeur import Testeur
@@ -120,6 +121,38 @@ class Site:
             return StatutDisponibilite.INDISPONIBLE
         return StatutDisponibilite.DISPONIBLE
 
+    def statut_performance(
+        self, config: ConfigurationTests
+    ) -> StatutPerformance:
+        """Calcule le statut de performance sur les dernières batteries.
+
+        Les batteries prises en compte sont celles des
+        config.fenetre_performance_min minutes qui précèdent la
+        dernière batterie (celle-ci comprise). Le RTT d'une batterie est
+        la durée de sa mesure L3 ou, à défaut, de sa mesure L4. Le site
+        n'a pour l'instant qu'une page, l'URI principale (RM-08).
+
+        PRE : aucune.
+        POST : renvoie DEGRADEES si le RTT moyen dépasse config.seuil_l3_s
+               ou si le temps de chargement moyen (mesures L7) dépasse
+               config.seuil_l7_s. Sinon renvoie NORMALES si l'une de ces
+               deux moyennes a pu être calculée, et INCONNU si aucune
+               mesure n'a de durée. Ne modifie rien.
+        """
+        batteries = self.__batteries_recentes(config.fenetre_performance_min)
+        rtt_moyen_s = self.__moyenne([self.__rtt(b) for b in batteries])
+        chargement_moyen_s = self.__moyenne(
+            [self.__chargement(b) for b in batteries]
+        )
+        if rtt_moyen_s is None and chargement_moyen_s is None:
+            return StatutPerformance.INCONNU
+        if rtt_moyen_s is not None and rtt_moyen_s > config.seuil_l3_s:
+            return StatutPerformance.DEGRADEES
+        if (chargement_moyen_s is not None
+                and chargement_moyen_s > config.seuil_l7_s):
+            return StatutPerformance.DEGRADEES
+        return StatutPerformance.NORMALES
+
     def lancer_batterie(
         self,
         testeurs: list[Testeur],
@@ -160,6 +193,47 @@ class Site:
         self.__historique.append(batterie)
         return batterie
 
+    def __batteries_recentes(self, minutes: int) -> list[BatterieTests]:
+        """Renvoie les batteries de la fenêtre qui précède la dernière.
+
+        La fenêtre dure minutes minutes et se termine à l'horodatage de
+        la dernière batterie, comprise. Renvoie une liste vide si le site
+        n'a jamais été testé.
+        """
+        derniere = self.derniere_batterie
+        if derniere is None:
+            return []
+        debut = derniere.horodatage - timedelta(minutes=minutes)
+        return [b for b in self.__historique if b.horodatage >= debut]
+
+    def __rtt(self, batterie: BatterieTests) -> float | None:
+        """Renvoie le RTT d'une batterie, ou None s'il est inconnu.
+
+        C'est la durée de la mesure L3 ; à défaut, celle de la mesure L4.
+        """
+        for couche in (Couche.L3, Couche.L4):
+            for mesure in batterie.mesures:
+                if mesure.couche == couche and mesure.duree_s is not None:
+                    return mesure.duree_s
+        return None
+
+    def __chargement(self, batterie: BatterieTests) -> float | None:
+        """Renvoie le temps de chargement d'une batterie, ou None.
+
+        C'est la moyenne des durées des mesures L7 de la batterie.
+        """
+        return self.__moyenne([
+            mesure.duree_s for mesure in batterie.mesures
+            if mesure.couche == Couche.L7
+        ])
+
+    def __moyenne(self, valeurs: list[float | None]) -> float | None:
+        """Renvoie la moyenne des valeurs connues, ou None s'il n'y en a."""
+        connues = [valeur for valeur in valeurs if valeur is not None]
+        if len(connues) == 0:
+            return None
+        return sum(connues) / len(connues)
+
     def __trier_par_couche(self, testeurs: list[Testeur]) -> list[Testeur]:
         """Renvoie les testeurs dans l'ordre des couches L3, L4, L7.
 
@@ -195,11 +269,13 @@ if __name__ == "__main__":
             verdict: Verdict,
             diagnostic: str,
             couche: Couche = Couche.L7,
+            duree_s: float | None = 0.1,
         ) -> None:
-            """Mémorise le verdict, le diagnostic et la couche simulée."""
+            """Mémorise le verdict, le diagnostic, la couche et la durée."""
             self.__verdict = verdict
             self.__diagnostic = diagnostic
             self.__couche = couche
+            self.__duree_s = duree_s
             self.delais_recus: list[float] = []
 
         @property
@@ -212,8 +288,8 @@ if __name__ == "__main__":
         ) -> list[Mesure]:
             """Renvoie une seule mesure, datée de l'horodatage reçu."""
             self.delais_recus.append(timeout_s)
-            return [Mesure(horodatage, self.couche, self.__verdict, 0.1,
-                           self.__diagnostic)]
+            return [Mesure(horodatage, self.couche, self.__verdict,
+                           self.__duree_s, self.__diagnostic)]
 
     print("Scénario : URI sans schéma : « https:// » ajouté par défaut")
     attendu = "https://clientabc.be"
@@ -430,6 +506,83 @@ if __name__ == "__main__":
     )
     attendu = StatutDisponibilite.INDISPONIBLE
     obtenu = site_l3_seul.statut_disponibilite
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    def horloge_fixee(instant_donne: datetime) -> Callable[[], datetime]:
+        """Fabrique une horloge de test qui renvoie toujours cet instant."""
+        return lambda: instant_donne
+
+    def statut_perf(*testeurs: Testeur) -> StatutPerformance:
+        """Teste un site neuf avec ces testeurs et renvoie sa performance."""
+        site = Site("ClientABC", "clientabc.be")
+        site.lancer_batterie(list(testeurs), CONFIG, fausse_horloge)
+        return site.statut_performance(CONFIG)
+
+    print("Scénario : RTT L3 supérieur au seuil : DEGRADEES (RM-08)")
+    attendu = StatutPerformance.DEGRADEES
+    obtenu = statut_perf(FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.2))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : pas de durée L3 : la durée L4 sert de RTT (RM-08)")
+    attendu = StatutPerformance.DEGRADEES
+    obtenu = statut_perf(
+        FauxTesteur(Verdict.KO, "0/6", Couche.L3, None),
+        FauxTesteur(Verdict.OK, "443", Couche.L4, 0.3),
+    )
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : chargement L7 supérieur au seuil : DEGRADEES "
+          "(RM-08)")
+    attendu = StatutPerformance.DEGRADEES
+    obtenu = statut_perf(FauxTesteur(Verdict.OK, "200", Couche.L7, 0.8))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : RTT et chargement sous les seuils : NORMALES")
+    attendu = StatutPerformance.NORMALES
+    obtenu = statut_perf(
+        FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.05),
+        FauxTesteur(Verdict.OK, "200", Couche.L7, 0.2),
+    )
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : aucune mesure n'a de durée : INCONNU")
+    attendu = StatutPerformance.INCONNU
+    obtenu = statut_perf(FauxTesteur(Verdict.KO, "0/6", Couche.L3, None))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : une batterie lente de plus de 30 minutes avant la "
+          "dernière est ignorée")
+    site_fenetre = Site("ClientABC", "clientabc.be")
+    site_fenetre.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200", Couche.L7, 0.9)],
+        CONFIG,
+        horloge_fixee(INSTANT - timedelta(minutes=45)),
+    )
+    site_fenetre.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200", Couche.L7, 0.1)],
+        CONFIG,
+        fausse_horloge,
+    )
+    attendu = StatutPerformance.NORMALES
+    obtenu = site_fenetre.statut_performance(CONFIG)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
