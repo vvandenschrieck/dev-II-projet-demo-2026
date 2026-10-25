@@ -82,7 +82,7 @@ def afficher_sites(registre: RegistreSites) -> None:
         print("Aucun site. Ajoutez-en un avec le choix 1.")
         return
     print(f"{'Nom':<15} {'Statut':<12} {'Dernier test':<19} "
-          f"{'Diagnostic':<26} URI")
+          f"{'Diagnostic':<46} URI")
     for site in registre.sites:
         afficher_site(site)
 
@@ -92,9 +92,10 @@ def afficher_site(site: Site) -> None:
 
     PRE : aucune.
     POST : affiche une ligne avec le nom, le statut, l'horodatage du
-           dernier test (EF-02.2), le diagnostic et l'URI principale.
-           Horodatage et diagnostic valent « - » si le site n'a jamais
-           été testé. Ne modifie rien.
+           dernier test (EF-02.2), les diagnostics de ses mesures,
+           précédés de leur couche (« L3: 6/6 sondes »), et l'URI
+           principale. Horodatage et diagnostic valent « - » si le site
+           n'a jamais été testé. Ne modifie rien.
     """
     statut = site.statut_disponibilite
     batterie = site.derniere_batterie
@@ -104,11 +105,12 @@ def afficher_site(site: Site) -> None:
     else:
         horodatage = batterie.horodatage.strftime(FORMAT_HORODATAGE)
         diagnostic = ", ".join(
-            mesure.diagnostic for mesure in batterie.mesures
+            f"{mesure.couche.name}: {mesure.diagnostic}"
+            for mesure in batterie.mesures
             if mesure.diagnostic is not None
         )
     ligne = (f"{site.nom:<15} {statut.name:<12} {horodatage:<19} "
-             f"{diagnostic:<26} {site.uri_principale}")
+             f"{diagnostic:<46} {site.uri_principale}")
     print(COULEURS[statut] + ligne + REINITIALISER)
 
 

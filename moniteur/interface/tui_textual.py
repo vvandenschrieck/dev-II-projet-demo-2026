@@ -206,7 +206,8 @@ class MoniteurApp(App):
         """Renvoie les textes des colonnes du tableau pour un site.
 
         Les colonnes sont le nom, le statut, l'horodatage du dernier
-        test (EF-02.2), le diagnostic et l'URI principale.
+        test (EF-02.2), les diagnostics des mesures, précédés de leur
+        couche (« L3: 6/6 sondes »), et l'URI principale.
         """
         batterie = site.derniere_batterie
         if batterie is None:
@@ -215,7 +216,8 @@ class MoniteurApp(App):
         else:
             horodatage = batterie.horodatage.strftime(FORMAT_HORODATAGE)
             diagnostic = ", ".join(
-                mesure.diagnostic for mesure in batterie.mesures
+                f"{mesure.couche.name}: {mesure.diagnostic}"
+                for mesure in batterie.mesures
                 if mesure.diagnostic is not None
             )
         return [

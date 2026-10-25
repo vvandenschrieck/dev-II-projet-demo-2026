@@ -13,6 +13,8 @@ from datetime import datetime
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.registre_sites import RegistreSites
 from moniteur.testeurs.testeur_http import TesteurHttp
+from moniteur.testeurs.testeur_icmp import TesteurIcmp
+from moniteur.testeurs.testeur_tcp import TesteurTcp
 
 # Valeur provisoire, en attendant la réponse de la cliente (Q-07).
 TIMEOUT_S = 5.0
@@ -43,8 +45,8 @@ def main() -> None:
     """Assemble l'application et lance l'interface choisie.
 
     PRE : aucune.
-    POST : crée un testeur HTTP, la configuration (TIMEOUT_S) et un
-           registre vide, puis lance l'interface choisie avec
+    POST : crée les testeurs ICMP, TCP et HTTP, la configuration
+           (TIMEOUT_S) et un registre vide, puis lance l'interface choisie avec
            l'horloge système. Ne rend la main que lorsque l'utilisatrice
            quitte.
            Exception SystemExit : si les arguments sont invalides ou si
@@ -53,7 +55,7 @@ def main() -> None:
            que textual n'est pas installé.
     """
     arguments = lire_arguments()
-    testeurs = [TesteurHttp()]
+    testeurs = [TesteurIcmp(), TesteurTcp(), TesteurHttp()]
     config = ConfigurationTests(TIMEOUT_S)
     registre = RegistreSites()
     if arguments.interface == "simple":
