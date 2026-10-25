@@ -150,4 +150,10 @@ requirements.txt        # textual
 4. Après chaque étape : expliquer brièvement les choix faits et ce qui reste ouvert.
 5. Un commit par étape, message en français à l'impératif
    (« Ajoute le calcul du statut de disponibilité »).
+   Le corps du message référence les issues GitHub concernées (une issue par
+   exigence : EF, F, ENF, Q, L) sous la forme `Réf. #15 (EF-03.2)`. Retrouver
+   les numéros avec `gh issue list --state all`. Ne citer que les exigences
+   réellement touchées. Ne jamais écrire `Closes #n` : c'est l'enseignante qui
+   ferme les issues. Les règles métier (RM-xx) n'ont pas d'issue : les citer
+   dans le texte seulement.
 6. Signaler toute incohérence repérée dans la documentation, sans la corriger.
