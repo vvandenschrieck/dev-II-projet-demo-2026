@@ -5,7 +5,11 @@ from datetime import datetime
 
 from moniteur.domaine.batterie_tests import BatterieTests
 from moniteur.domaine.configuration_tests import ConfigurationTests
-from moniteur.domaine.enumerations import StatutDisponibilite, Verdict
+from moniteur.domaine.enumerations import (
+    Couche,
+    StatutDisponibilite,
+    Verdict,
+)
 from moniteur.domaine.testeur import Testeur
 
 SCHEMA_PAR_DEFAUT = "https://"
@@ -92,16 +96,28 @@ class Site:
 
         PRE : aucune.
         POST : renvoie INCONNU si le site n'a jamais été testé ou si sa
-               dernière batterie n'a aucune mesure, DISPONIBLE si toutes
-               les mesures de la dernière batterie sont OK,
-               INDISPONIBLE si l'une d'elles est KO. Ne modifie rien.
+               dernière batterie n'a aucune mesure, INDISPONIBLE si une
+               mesure L4 ou L7 de la dernière batterie est KO, et
+               DISPONIBLE sinon. Une mesure L3 KO ne rend le site
+               indisponible que si la batterie n'a aucune mesure L4 ou
+               L7 : une mesure d'une de ces couches (forcément OK à ce
+               stade) la compense, l'ICMP étant souvent bloqué (RM-06,
+               Q-02). Ne modifie rien.
         """
         batterie = self.derniere_batterie
         if batterie is None or len(batterie.mesures) == 0:
             return StatutDisponibilite.INCONNU
+        echec_l3 = False
+        mesure_l4_ou_l7 = False
         for mesure in batterie.mesures:
-            if mesure.verdict == Verdict.KO:
+            if mesure.couche == Couche.L3:
+                echec_l3 = echec_l3 or mesure.verdict == Verdict.KO
+            elif mesure.verdict == Verdict.KO:
                 return StatutDisponibilite.INDISPONIBLE
+            else:
+                mesure_l4_ou_l7 = True
+        if echec_l3 and not mesure_l4_ou_l7:
+            return StatutDisponibilite.INDISPONIBLE
         return StatutDisponibilite.DISPONIBLE
 
     def lancer_batterie(
@@ -117,11 +133,14 @@ class Site:
 
         PRE : config.timeout_s > 0 (précondition de Testeur.executer).
         POST : renvoie la nouvelle batterie, datée de l'instant donné
-               par horloge (appelée une fois). Chaque testeur est
-               exécuté à son tour, et ses mesures sont ajoutées à la
-               batterie dans cet ordre. La batterie est ajoutée à la
-               fin de l'historique du site : elle devient sa dernière
-               batterie. Ne modifie ni testeurs ni config.
+               par horloge (appelée une fois). Les testeurs sont
+               exécutés dans l'ordre des couches L3, L4, L7 (à couche
+               égale, dans l'ordre reçu) et leurs mesures sont ajoutées
+               à la batterie dans cet ordre. Dès que la batterie est
+               interrompue (mesure KO en L4, EF-03.2), les testeurs
+               restants ne sont pas exécutés. La batterie est ajoutée à
+               la fin de l'historique du site : elle devient sa
+               dernière batterie. Ne modifie ni testeurs ni config.
                Exception ValueError : si testeurs est vide.
                Si une exception est levée, l'historique n'est pas
                modifié.
@@ -131,7 +150,9 @@ class Site:
                 "Une batterie de tests demande au moins un testeur."
             )
         batterie = BatterieTests(horloge())
-        for testeur in testeurs:
+        for testeur in self.__trier_par_couche(testeurs):
+            if batterie.interrompue:
+                break
             mesures = testeur.executer(
                 self, config.timeout_s, batterie.horodatage
             )
@@ -139,9 +160,20 @@ class Site:
         self.__historique.append(batterie)
         return batterie
 
+    def __trier_par_couche(self, testeurs: list[Testeur]) -> list[Testeur]:
+        """Renvoie les testeurs dans l'ordre des couches L3, L4, L7.
+
+        À couche égale, l'ordre reçu est conservé.
+        """
+        tries: list[Testeur] = []
+        for couche in Couche:
+            for testeur in testeurs:
+                if testeur.couche == couche:
+                    tries.append(testeur)
+        return tries
+
 
 if __name__ == "__main__":
-    from moniteur.domaine.enumerations import Couche
     from moniteur.domaine.mesure import Mesure
 
     INSTANT = datetime(2026, 10, 17, 14, 30)
@@ -158,16 +190,22 @@ if __name__ == "__main__":
         appel, pour vérifier ce que le site transmet au testeur.
         """
 
-        def __init__(self, verdict: Verdict, diagnostic: str) -> None:
-            """Mémorise le verdict et le diagnostic à renvoyer."""
+        def __init__(
+            self,
+            verdict: Verdict,
+            diagnostic: str,
+            couche: Couche = Couche.L7,
+        ) -> None:
+            """Mémorise le verdict, le diagnostic et la couche simulée."""
             self.__verdict = verdict
             self.__diagnostic = diagnostic
+            self.__couche = couche
             self.delais_recus: list[float] = []
 
         @property
         def couche(self) -> Couche:
-            """Donne la couche simulée (L7)."""
-            return Couche.L7
+            """Donne la couche simulée."""
+            return self.__couche
 
         def executer(
             self, site: Site, timeout_s: float, horodatage: datetime
@@ -314,6 +352,84 @@ if __name__ == "__main__":
     site_espion.lancer_batterie([testeur_espion], CONFIG, fausse_horloge)
     attendu = [5.0]
     obtenu = testeur_espion.delais_recus
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : les testeurs sont exécutés dans l'ordre L3, L4, L7 "
+          "(EF-03.2)")
+    site_ordre = Site("ClientABC", "clientabc.be")
+    batterie_ordre = site_ordre.lancer_batterie(
+        [
+            FauxTesteur(Verdict.OK, "200", Couche.L7),
+            FauxTesteur(Verdict.OK, "6/6", Couche.L3),
+            FauxTesteur(Verdict.OK, "443", Couche.L4),
+        ],
+        CONFIG,
+        fausse_horloge,
+    )
+    attendu = [Couche.L3, Couche.L4, Couche.L7]
+    obtenu = [mesure.couche for mesure in batterie_ordre.mesures]
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : un échec en L4 arrête la batterie : pas de mesure "
+          "L7 (EF-03.2)")
+    site_l4 = Site("ClientABC", "clientabc.be")
+    batterie_l4 = site_l4.lancer_batterie(
+        [
+            FauxTesteur(Verdict.OK, "6/6", Couche.L3),
+            FauxTesteur(Verdict.KO, "port fermé", Couche.L4),
+            FauxTesteur(Verdict.OK, "200", Couche.L7),
+        ],
+        CONFIG,
+        fausse_horloge,
+    )
+    attendu = [Couche.L3, Couche.L4]
+    obtenu = [mesure.couche for mesure in batterie_l4.mesures]
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : échec en L4 : statut INDISPONIBLE (RM-06)")
+    attendu = StatutDisponibilite.INDISPONIBLE
+    obtenu = site_l4.statut_disponibilite
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : échec en L3 compensé par L4 et L7 : DISPONIBLE "
+          "(Q-02, RM-06)")
+    site_icmp_bloque = Site("ClientABC", "clientabc.be")
+    site_icmp_bloque.lancer_batterie(
+        [
+            FauxTesteur(Verdict.KO, "0/6", Couche.L3),
+            FauxTesteur(Verdict.OK, "443", Couche.L4),
+            FauxTesteur(Verdict.OK, "200", Couche.L7),
+        ],
+        CONFIG,
+        fausse_horloge,
+    )
+    attendu = StatutDisponibilite.DISPONIBLE
+    obtenu = site_icmp_bloque.statut_disponibilite
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : échec en L3 sans aucune mesure L4 ou L7 : "
+          "INDISPONIBLE (RM-06)")
+    site_l3_seul = Site("ClientABC", "clientabc.be")
+    site_l3_seul.lancer_batterie(
+        [FauxTesteur(Verdict.KO, "0/6", Couche.L3)], CONFIG, fausse_horloge
+    )
+    attendu = StatutDisponibilite.INDISPONIBLE
+    obtenu = site_l3_seul.statut_disponibilite
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
