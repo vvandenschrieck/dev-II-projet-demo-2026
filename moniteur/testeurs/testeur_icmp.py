@@ -1,6 +1,7 @@
 """Testeur ICMP : vérifie qu'un site répond aux sondes ping."""
 
 import platform
+import re
 import socket
 import subprocess
 from datetime import datetime
@@ -18,6 +19,12 @@ NB_SONDES_PAR_DEFAUT = 6
 # Marge, en secondes, laissée au système pour lancer et terminer un ping.
 MARGE_S = 2.0
 
+# Temps de réponse affiché par ping : « time=0.117 ms », « time=12ms »,
+# « time<1ms » (« temps » dans certaines versions françaises).
+MOTIF_RTT = re.compile(
+    r"(?:time|temps)\s*[=<]\s*([\d.,]+)\s*ms", re.IGNORECASE
+)
+
 
 def calculer_verdict(reussies: int, nb_sondes: int) -> Verdict:
     """Décide du verdict d'après le nombre de sondes réussies (RM-01).
@@ -31,6 +38,21 @@ def calculer_verdict(reussies: int, nb_sondes: int) -> Verdict:
     return Verdict.OK
 
 
+def lire_rtt(sortie: str) -> float | None:
+    """Lit le temps de réponse (RTT) dans la sortie d'une commande ping.
+
+    PRE : aucune.
+    POST : renvoie le premier temps de réponse trouvé dans sortie, en
+           secondes, ou None si la sortie n'en contient pas (format
+           inconnu). Un temps affiché « <1ms » vaut 1 ms. Ne modifie
+           rien.
+    """
+    trouve = MOTIF_RTT.search(sortie)
+    if trouve is None:
+        return None
+    return float(trouve.group(1).replace(",", ".")) / 1000
+
+
 class TesteurIcmp(Testeur):
     """Testeur de la couche 3 : envoie des sondes ping vers le site.
 
@@ -39,7 +61,8 @@ class TesteurIcmp(Testeur):
     par la commande ping du système, qui n'exige pas de droits
     particuliers. Les options de cette commande dépendent du système
     (Windows, macOS, Linux). Les sondes partent en même temps, pour que
-    le test ne dure pas plusieurs délais maximaux.
+    le test ne dure pas plusieurs délais maximaux. Le temps de réponse
+    (RTT) est lu dans le texte affiché par ping (RM-07).
 
     INVARIANT : la couche testée est toujours L3 ; le nombre de sondes
     est au moins 1 et ne change jamais.
@@ -79,8 +102,10 @@ class TesteurIcmp(Testeur):
                datée de horodatage :
                - sondes envoyées : verdict OK si au moins la moitié ont
                  abouti, KO sinon (RM-01), diagnostic « N/M sondes ».
-                 La durée est None : elle n'est pas mesurée, la sortie
-                 de ping dépendant du système ;
+                 La durée est le RTT moyen, en secondes, des sondes
+                 réussies dont le temps a pu être lu ; elle est None si
+                 aucune sonde n'a réussi ou si le format de la sortie
+                 de ping est inconnu ;
                - sondes impossibles à envoyer (nom introuvable, URI mal
                  formée, commande ping absente, système non pris en
                  charge) : verdict KO, durée None, diagnostic donnant
@@ -95,7 +120,9 @@ class TesteurIcmp(Testeur):
             adresse = socket.getaddrinfo(
                 hote, None, socket.AF_INET, socket.SOCK_STREAM
             )[0][4][0]
-            reussies = self.__envoyer_sondes(adresse, timeout_s)
+            reussies, rtt_moyen_s = self.__envoyer_sondes(
+                adresse, timeout_s
+            )
         except socket.gaierror:
             return [self.__mesure_ko(horodatage, "nom de domaine introuvable")]
         except FileNotFoundError:
@@ -104,7 +131,9 @@ class TesteurIcmp(Testeur):
             return [self.__mesure_ko(horodatage, str(erreur))]
         verdict = calculer_verdict(reussies, self.__nb_sondes)
         diagnostic = f"{reussies}/{self.__nb_sondes} sondes"
-        return [Mesure(horodatage, self.couche, verdict, None, diagnostic)]
+        return [
+            Mesure(horodatage, self.couche, verdict, rtt_moyen_s, diagnostic)
+        ]
 
     def __mesure_ko(self, horodatage: datetime, diagnostic: str) -> Mesure:
         """Renvoie une mesure KO, sans durée, avec ce diagnostic."""
@@ -138,30 +167,46 @@ class TesteurIcmp(Testeur):
             return ["ping", "-c", "1", "-W", str(ceil(timeout_s)), adresse]
         raise NotImplementedError(f"ping non pris en charge sur {systeme}")
 
-    def __envoyer_sondes(self, adresse: str, timeout_s: float) -> int:
-        """Envoie les sondes en même temps et renvoie le nombre réussi.
+    def __envoyer_sondes(
+        self, adresse: str, timeout_s: float
+    ) -> tuple[int, float | None]:
+        """Envoie les sondes en même temps et renvoie leur résultat.
 
         Une sonde réussit si la commande ping se termine avec le code 0
-        (réponse reçue). Lève FileNotFoundError si la commande ping est
-        absente et NotImplementedError si le système n'est pas pris en
-        charge.
+        (réponse reçue). Renvoie le nombre de sondes réussies et le RTT
+        moyen, en secondes, des sondes réussies dont le temps a pu être
+        lu (None s'il n'y en a aucune). Lève FileNotFoundError si la
+        commande ping est absente et NotImplementedError si le système
+        n'est pas pris en charge.
         """
         commande = self.__commande_ping(adresse, timeout_s)
         sondes = [
             subprocess.Popen(
-                commande, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                commande,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                errors="replace",
             )
             for _ in range(self.__nb_sondes)
         ]
         reussies = 0
+        temps: list[float] = []
         for sonde in sondes:
             try:
-                if sonde.wait(timeout=timeout_s + MARGE_S) == 0:
-                    reussies += 1
+                sortie, _ = sonde.communicate(timeout=timeout_s + MARGE_S)
             except subprocess.TimeoutExpired:
                 sonde.kill()
-                sonde.wait()
-        return reussies
+                sonde.communicate()
+                continue
+            if sonde.returncode == 0:
+                reussies += 1
+                rtt_s = lire_rtt(sortie)
+                if rtt_s is not None:
+                    temps.append(rtt_s)
+        if len(temps) == 0:
+            return reussies, None
+        return reussies, sum(temps) / len(temps)
 
 
 if __name__ == "__main__":
@@ -185,11 +230,37 @@ if __name__ == "__main__":
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
     print("-" * 40)
 
+    print("Scénario : machine locale : RTT moyen lu dans la sortie de ping "
+          "(RM-07)")
+    attendu = True
+    obtenu = mesure.duree_s is not None and 0 < mesure.duree_s < 0.1
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu} ({mesure.duree_s})")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
     print("Scénario : adresse sans réponse : 0 sonde sur 6, verdict KO "
           "(RM-01)")
     attendu = (Verdict.KO, "0/6 sondes")
     mesure = tester("http://192.0.2.1")
     obtenu = (mesure.verdict, mesure.diagnostic)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : lecture du RTT dans différents formats de ping")
+    attendu = [0.000117, 0.012, 0.001, None]
+    sorties = [
+        "64 bytes from 127.0.0.1: icmp_seq=0 ttl=64 time=0.117 ms",
+        "Reply from 8.8.8.8: bytes=32 time=12ms TTL=117",
+        "Reply from 8.8.8.8: bytes=32 time<1ms TTL=117",
+        "Request timed out.",
+    ]
+    obtenu = [
+        None if rtt_s is None else round(rtt_s, 6)
+        for rtt_s in map(lire_rtt, sorties)
+    ]
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
