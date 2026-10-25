@@ -1,8 +1,10 @@
 """Interface Textual : tableau des sites, formulaire et raccourcis clavier.
 
 L'écran affiche en permanence la liste des sites. Un formulaire permet
-d'en ajouter, et des raccourcis lancent les tests. Les tests tournent
-dans un fil d'exécution séparé pour que l'écran reste utilisable.
+d'en ajouter, et des raccourcis lancent les tests. Un minuteur lance
+aussi automatiquement les tests des sites dont l'échéance est atteinte
+(EF-03.7). Les tests tournent dans un fil d'exécution séparé pour que
+l'écran reste utilisable.
 """
 
 from collections.abc import Callable
@@ -35,6 +37,9 @@ FORMAT_HORODATAGE = "%d/%m/%Y %H:%M:%S"
 # Ajouté à l'horodatage d'un site dont les statuts datent de trop longtemps.
 MARQUE_ANCIEN = " (ancien)"
 
+# Délai, en secondes, entre deux vérifications des échéances de test.
+INTERVALLE_REVEIL_S = 60
+
 
 def formater_duree(duree_s: float | None, ecart: float | None) -> str:
     """Formate une durée en millisecondes, suivie de son écart en %.
@@ -63,8 +68,10 @@ def formater_duree(duree_s: float | None, ecart: float | None) -> str:
 class MoniteurApp(App):
     """Application Textual de surveillance des sites.
 
-    INVARIANT : le registre, les testeurs, la configuration et l'horloge
-    reçus à la création ne sont jamais remplacés.
+    INVARIANT : le registre, les testeurs, la configuration, l'horloge
+    et la fréquence des tests reçus à la création ne sont jamais
+    remplacés ; un site n'est jamais testé deux fois en même temps par
+    cette application.
     """
 
     TITLE = "Surveillance des sites"
@@ -86,8 +93,12 @@ class MoniteurApp(App):
         testeurs: list[Testeur],
         config: ConfigurationTests,
         horloge: Callable[[], datetime],
+        frequence_min: int,
     ) -> None:
         """Mémorise les objets créés par main.py, transmis au domaine.
+
+        frequence_min est le délai, en minutes, entre deux tests
+        automatiques d'un même site (EF-03.7).
 
         PRE : aucune.
         POST : l'application est créée, sans rien afficher.
@@ -97,6 +108,8 @@ class MoniteurApp(App):
         self.__testeurs = testeurs
         self.__config = config
         self.__horloge = horloge
+        self.__frequence_min = frequence_min
+        self.__en_cours: set[str] = set()
 
     def compose(self) -> ComposeResult:
         """Construit l'écran : tableau, formulaire, message et raccourcis.
@@ -115,12 +128,14 @@ class MoniteurApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Crée les colonnes du tableau et l'affiche une première fois.
+        """Crée les colonnes du tableau, l'affiche et lance le minuteur.
 
         PRE : l'écran a été construit (compose).
         POST : le tableau a ses huit colonnes et affiche les sites du
-               registre (EF-02.1). Ne modifie ni le registre ni les
-               sites.
+               registre (EF-02.1). Un minuteur vérifie ensuite toutes
+               les INTERVALLE_REVEIL_S secondes quels sites sont à tester
+               et les teste en arrière-plan (EF-03.7). Ne modifie ni le
+               registre ni les sites.
         """
         tableau = self.query_one(DataTable)
         tableau.add_columns(
@@ -128,6 +143,7 @@ class MoniteurApp(App):
             "Dernier test", "Diagnostic", "URI",
         )
         self.__rafraichir()
+        self.set_interval(INTERVALLE_REVEIL_S, self.__lancer_echeances)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Ajoute le site saisi lorsque le bouton est pressé.
@@ -158,7 +174,8 @@ class MoniteurApp(App):
         POST : si le tableau est vide, affiche « Aucun site à tester. ».
                Sinon lance, en arrière-plan, une batterie sur le site
                sélectionné : elle rejoint son historique et le tableau
-               est rafraîchi à la fin du test.
+               est rafraîchi à la fin du test. Si ce site est déjà en
+               cours de test, affiche « Test déjà en cours. ».
         """
         tableau = self.query_one(DataTable)
         if tableau.row_count == 0:
@@ -166,7 +183,7 @@ class MoniteurApp(App):
             return
         cle = tableau.coordinate_to_cell_key(tableau.cursor_coordinate)
         site = self.__registre.trouver_site(cle.row_key.value)
-        self.__lancer_tests([site])
+        self.__demarrer_tests([site], Declenchement.MANUEL)
 
     def action_tester_tous(self) -> None:
         """Lance une batterie sur chaque site du registre (EF-03.4).
@@ -174,9 +191,12 @@ class MoniteurApp(App):
         PRE : aucune.
         POST : lance, en arrière-plan, une batterie sur chaque site du
                registre, dans l'ordre : elle rejoint l'historique du
-               site et le tableau est rafraîchi après chaque site.
+               site et le tableau est rafraîchi après chaque site. Les
+               sites déjà en cours de test sont ignorés.
         """
-        self.__lancer_tests(list(self.__registre.sites))
+        self.__demarrer_tests(
+            list(self.__registre.sites), Declenchement.MANUEL
+        )
 
     def __ajouter_site(self) -> None:
         """Ajoute le site décrit dans le formulaire.
@@ -199,23 +219,65 @@ class MoniteurApp(App):
         self.__afficher_message(f"Site « {site.nom} » ajouté.")
         self.__rafraichir()
 
+    def __lancer_echeances(self) -> None:
+        """Lance le test automatique des sites dont l'échéance est atteinte.
+
+        Appelée par le minuteur. Un site est à tester s'il n'a jamais
+        été testé ou si son dernier test date d'au moins la fréquence
+        choisie (EF-03.7).
+        """
+        a_tester = [
+            site for site in self.__registre.sites
+            if site.est_a_tester(self.__frequence_min, self.__horloge)
+        ]
+        self.__demarrer_tests(a_tester, Declenchement.PERIODIQUE)
+
+    def __demarrer_tests(
+        self, sites: list[Site], declenchement: Declenchement
+    ) -> None:
+        """Lance en arrière-plan les tests des sites qui ne sont pas en cours.
+
+        Affiche « Test déjà en cours. » si un test demandé à la main
+        porte sur des sites tous déjà en cours de test.
+        """
+        libres = [s for s in sites if s.nom not in self.__en_cours]
+        if len(libres) == 0:
+            if declenchement == Declenchement.MANUEL and len(sites) > 0:
+                self.__afficher_message("Test déjà en cours.")
+            return
+        self.__en_cours.update(site.nom for site in libres)
+        self.__lancer_tests(libres, declenchement)
+
+    def __liberer(self, nom: str) -> None:
+        """Note que le site de ce nom n'est plus en cours de test."""
+        self.__en_cours.discard(nom)
+
     @work(thread=True)
-    def __lancer_tests(self, sites: list[Site]) -> None:
+    def __lancer_tests(
+        self, sites: list[Site], declenchement: Declenchement
+    ) -> None:
         """Teste les sites un par un, dans un fil d'exécution séparé.
 
         Le tableau est mis à jour après chaque site. Les appels à
         l'écran passent par call_from_thread, seul moyen sûr de
         modifier l'interface depuis un autre fil.
         """
+        automatique = declenchement == Declenchement.PERIODIQUE
         for site in sites:
-            message = f"Test de « {site.nom} » en cours..."
+            if automatique:
+                message = f"Test automatique de « {site.nom} » en cours..."
+            else:
+                message = f"Test de « {site.nom} » en cours..."
             self.call_from_thread(self.__afficher_message, message)
-            site.lancer_batterie(
-                self.__testeurs,
-                self.__config,
-                Declenchement.MANUEL,
-                self.__horloge,
-            )
+            try:
+                site.lancer_batterie(
+                    self.__testeurs,
+                    self.__config,
+                    declenchement,
+                    self.__horloge,
+                )
+            finally:
+                self.call_from_thread(self.__liberer, site.nom)
             self.call_from_thread(self.__rafraichir)
         self.call_from_thread(self.__afficher_message, "Tests terminés.")
 
@@ -305,15 +367,18 @@ def lancer(
     testeurs: list[Testeur],
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
+    frequence_min: int,
 ) -> None:
     """Lance l'application Textual jusqu'à ce que l'utilisatrice quitte.
 
-    registre, testeurs, config et horloge sont créés par main.py et
-    transmis tels quels au domaine.
+    registre, testeurs, config, horloge et frequence_min sont créés par
+    main.py et transmis tels quels au domaine.
 
     PRE : config.timeout_s > 0.
     POST : affiche l'application et ne rend la main que lorsque
-           l'utilisatrice quitte. Modifie registre (sites ajoutés) et
-           les sites testés (nouvelles batteries).
+           l'utilisatrice quitte. Teste automatiquement chaque site
+           dont le dernier test date d'au moins frequence_min minutes
+           (EF-03.7). Modifie registre (sites ajoutés) et les sites
+           testés (nouvelles batteries).
     """
-    MoniteurApp(registre, testeurs, config, horloge).run()
+    MoniteurApp(registre, testeurs, config, horloge, frequence_min).run()

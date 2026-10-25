@@ -26,6 +26,10 @@ TIMEOUT_S = 5.0
 # démonstration, une valeur de 1 ou 2 minutes rend les écarts visibles.
 FENETRE_PERFORMANCE_MIN = 30
 
+# Délai, en minutes, entre deux tests automatiques d'un même site
+# (réponse à Q-01).
+FREQUENCE_MIN = 15
+
 # Sites d'essai (nom, URI) ajoutés par l'option --demo : ils couvrent les
 # cas de figure de la vérification manuelle. Ils contactent de vrais sites.
 SITES_DEMO = (
@@ -108,7 +112,9 @@ def main() -> None:
         # textual n'est importé que si cette interface est choisie : la
         # TUI simple fonctionne donc même sans textual installé.
         from moniteur.interface import tui_textual
-        tui_textual.lancer(registre, testeurs, config, datetime.now)
+        tui_textual.lancer(
+            registre, testeurs, config, datetime.now, FREQUENCE_MIN
+        )
 
 
 if __name__ == "__main__":

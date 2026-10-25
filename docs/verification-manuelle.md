@@ -48,6 +48,7 @@ Pour chaque scénario, cochez la case de l'interface vérifiée.
 | 14 | Écran réactif (Textual) | Lancer le test de tous les sites (`a`) et déplacer le curseur pendant les tests | L'écran répond ; le message « Test de … en cours… » change | — | ☐ |
 | 15 | Tableau vide (Textual) | Au démarrage, appuyer sur `t` | Message « Aucun site à tester. », sans erreur | — | ☐ |
 | 16 | Crochets dans un nom (Textual) | `[red]Test` / `www.google.com` | Le nom s'affiche tel quel, sans couleur parasite | — | ☐ |
+| 17 | Tests automatiques (Textual) | Lancer `main.py --demo --interface textual` et ne rien faire pendant environ une minute | Les sites jamais testés sont testés automatiquement, un par un (messages « Test automatique de … en cours… », lignes mises à jour au fur et à mesure). Un site testé à la main n'est retesté qu'au bout de 15 minutes | — | ☐ |
 
 ## Sites d'essai préchargés
 
@@ -57,6 +58,9 @@ registre contient alors `ClientABC`, `Absent`, `Fantome`, `Bloque`,
 `PortFerme`, `Lent` et `Local`, en statut INCONNU : il suffit de les tester
 (un par un, ou tous ensemble). Ces sites sont ceux des scénarios 4 à 11 (le scénario 10 utilise `Local`).
 Pour les scénarios d'ajout et de refus (1 à 3 et 12), lancez sans `--demo`.
+Avec Textual, les sites jamais testés sont testés automatiquement dans la minute
+qui suit le lancement (voir le dernier scénario) : ils contactent donc de vrais sites
+sans action de votre part.
 
 ## Alternative locale pour le scénario 8
 
