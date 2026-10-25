@@ -240,6 +240,26 @@ class Site:
         age = horloge() - derniere.horodatage
         return age > timedelta(minutes=config.age_max_statut_min)
 
+    def est_a_tester(
+        self, frequence_min: int, horloge: Callable[[], datetime]
+    ) -> bool:
+        """Dit si le site doit être testé par le lancement automatique.
+
+        Un test lancé à la main repousse l'échéance, comme un test
+        automatique : seule compte la dernière batterie (EF-03.7).
+
+        PRE : aucune.
+        POST : renvoie True si le site n'a jamais été testé ou si sa
+               dernière batterie date d'au moins frequence_min minutes
+               avant l'instant donné par horloge (appelée une fois).
+               Renvoie False sinon. Ne modifie rien.
+        """
+        derniere = self.derniere_batterie
+        if derniere is None:
+            return True
+        age = horloge() - derniere.horodatage
+        return age >= timedelta(minutes=frequence_min)
+
     def lancer_batterie(
         self,
         testeurs: list[Testeur],
@@ -807,6 +827,45 @@ if __name__ == "__main__":
     attendu = (0.5, 0.5)
     obtenu = (round(site_ecart.ecart_rtt(CONFIG), 6),
               round(site_ecart.ecart_chargement(CONFIG), 6))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_echeance = Site("ClientABC", "clientabc.be")
+
+    print("Scénario : site jamais testé : à tester (EF-03.7)")
+    attendu = True
+    obtenu = site_echeance.est_a_tester(15, fausse_horloge)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_echeance.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200")],
+        CONFIG,
+        MANUEL,
+        horloge_fixee(INSTANT - timedelta(minutes=14)),
+    )
+    print("Scénario : dernier test (manuel) il y a 14 minutes : pas encore "
+          "à tester")
+    attendu = False
+    obtenu = site_echeance.est_a_tester(15, fausse_horloge)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_echeance.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200")],
+        CONFIG,
+        MANUEL,
+        horloge_fixee(INSTANT - timedelta(minutes=15)),
+    )
+    print("Scénario : dernier test il y a exactement 15 minutes : à tester")
+    attendu = True
+    obtenu = site_echeance.est_a_tester(15, fausse_horloge)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
