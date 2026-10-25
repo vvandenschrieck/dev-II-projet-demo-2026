@@ -1,9 +1,32 @@
-"""Énumérations du domaine : verdict d'une mesure et statut d'un site.
+"""Énumérations du domaine : couche, verdict d'une mesure, statut d'un site.
 
-Ces ensembles fermés de valeurs viennent du diagramme de classes du MVP.
+Ces ensembles fermés de valeurs viennent du diagramme de classes.
 """
 
 from enum import Enum, auto
+
+
+class Couche(Enum):
+    """Couche réseau sur laquelle porte un test.
+
+    L3 (réseau, sondes ICMP), L4 (transport, connexion TCP) et L7
+    (applicative, requête HTTP). L'ordre de déclaration est l'ordre
+    dans lequel les tests sont appliqués (EF-03.2).
+    """
+
+    L3 = auto()
+    L4 = auto()
+    L7 = auto()
+
+    @property
+    def bloquante(self) -> bool:
+        """Dit si l'échec d'un test sur cette couche arrête la batterie.
+
+        PRE : aucune.
+        POST : renvoie True pour L4 et False pour L3 et L7 (EF-03.2).
+               Ne modifie rien.
+        """
+        return self == Couche.L4
 
 
 class Verdict(Enum):
@@ -27,3 +50,21 @@ class StatutDisponibilite(Enum):
     DISPONIBLE = auto()
     INDISPONIBLE = auto()
     INCONNU = auto()
+
+
+if __name__ == "__main__":
+    print("Scénario : seul un échec en L4 arrête la batterie (EF-03.2)")
+    attendu = [Couche.L4]
+    obtenu = [couche for couche in Couche if couche.bloquante]
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : l'ordre des couches est L3, L4, L7 (EF-03.2)")
+    attendu = [Couche.L3, Couche.L4, Couche.L7]
+    obtenu = list(Couche)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
