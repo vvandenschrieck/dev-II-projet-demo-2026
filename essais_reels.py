@@ -15,7 +15,7 @@ import sys
 from datetime import datetime
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
-from moniteur.domaine.enumerations import Couche
+from moniteur.domaine.enumerations import Couche, Declenchement
 from moniteur.domaine.site import Site
 from moniteur.testeurs.testeur_http import TesteurHttp
 from moniteur.testeurs.testeur_icmp import TesteurIcmp
@@ -86,6 +86,7 @@ def tester(uri: str) -> Site:
     site.lancer_batterie(
         [TesteurIcmp(), TesteurTcp(), TesteurHttp()],
         ConfigurationTests(TIMEOUT_S),
+        Declenchement.MANUEL,
         datetime.now,
     )
     return site

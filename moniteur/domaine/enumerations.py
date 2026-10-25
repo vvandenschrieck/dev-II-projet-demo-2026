@@ -1,4 +1,4 @@
-"""Énumérations du domaine : couche, verdict, statuts d'un site.
+"""Énumérations du domaine : couche, verdict, déclenchement, statuts.
 
 Ces ensembles fermés de valeurs viennent du diagramme de classes.
 """
@@ -38,6 +38,17 @@ class Verdict(Enum):
 
     OK = auto()
     KO = auto()
+
+
+class Declenchement(Enum):
+    """Façon dont une batterie de tests a été lancée.
+
+    MANUEL à la demande de l'utilisatrice (EF-03.1, EF-03.4) et
+    PERIODIQUE par le lancement automatique (EF-03.7).
+    """
+
+    MANUEL = auto()
+    PERIODIQUE = auto()
 
 
 class StatutDisponibilite(Enum):

@@ -84,6 +84,7 @@ if __name__ == "__main__":
     from moniteur.domaine.configuration_tests import ConfigurationTests
     from moniteur.domaine.enumerations import (
         Couche,
+        Declenchement,
         StatutDisponibilite,
         Verdict,
     )
@@ -184,7 +185,10 @@ if __name__ == "__main__":
     registre.ajouter_site("ClientXYZ", "clientxyz.be")
     for site in registre.sites:
         site.lancer_batterie(
-            [FauxTesteur()], ConfigurationTests(5.0), fausse_horloge
+            [FauxTesteur()],
+            ConfigurationTests(5.0),
+            Declenchement.MANUEL,
+            fausse_horloge,
         )
     attendu = [StatutDisponibilite.DISPONIBLE, StatutDisponibilite.DISPONIBLE]
     obtenu = [site.statut_disponibilite for site in registre.sites]

@@ -10,6 +10,7 @@ from datetime import datetime
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.enumerations import (
+    Declenchement,
     StatutDisponibilite,
     StatutPerformance,
 )
@@ -231,7 +232,7 @@ def tester_site(
         print(f"Refus : {erreur}")
         return
     print(f"Test de « {site.nom} » en cours...")
-    site.lancer_batterie(testeurs, config, horloge)
+    site.lancer_batterie(testeurs, config, Declenchement.MANUEL, horloge)
 
 
 def tester_tous_les_sites(
@@ -251,4 +252,6 @@ def tester_tous_les_sites(
     """
     for site in registre.sites:
         print(f"Test de « {site.nom} » en cours...")
-        site.lancer_batterie(testeurs, config, horloge)
+        site.lancer_batterie(
+            testeurs, config, Declenchement.MANUEL, horloge
+        )

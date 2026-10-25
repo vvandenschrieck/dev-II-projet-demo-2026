@@ -16,6 +16,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.enumerations import (
+    Declenchement,
     StatutDisponibilite,
     StatutPerformance,
 )
@@ -210,7 +211,10 @@ class MoniteurApp(App):
             message = f"Test de « {site.nom} » en cours..."
             self.call_from_thread(self.__afficher_message, message)
             site.lancer_batterie(
-                self.__testeurs, self.__config, self.__horloge
+                self.__testeurs,
+                self.__config,
+                Declenchement.MANUEL,
+                self.__horloge,
             )
             self.call_from_thread(self.__rafraichir)
         self.call_from_thread(self.__afficher_message, "Tests terminés.")

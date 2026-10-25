@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from moniteur.domaine.enumerations import Verdict
+from moniteur.domaine.enumerations import Declenchement, Verdict
 from moniteur.domaine.mesure import Mesure
 
 
@@ -14,17 +14,22 @@ class BatterieTests:
     l'utilisatrice (EF-02.2), et regroupe les mesures renvoyées par
     les testeurs.
 
-    INVARIANT : l'horodatage ne change jamais après la construction ;
-    les mesures sont conservées dans l'ordre de leur ajout.
+    INVARIANT : l'horodatage et le déclenchement ne changent jamais
+    après la construction ; les mesures sont conservées dans l'ordre de
+    leur ajout.
     """
 
-    def __init__(self, horodatage: datetime) -> None:
+    def __init__(
+        self, horodatage: datetime, declenchement: Declenchement
+    ) -> None:
         """Crée une batterie vide, datée de l'instant reçu.
 
         PRE : aucune.
-        POST : la batterie est créée, datée de horodatage, sans mesure.
+        POST : la batterie est créée, datée de horodatage, lancée de la
+               façon indiquée par declenchement, sans mesure.
         """
         self.__horodatage = horodatage
+        self.__declenchement = declenchement
         self.__mesures: list[Mesure] = []
 
     @property
@@ -35,6 +40,15 @@ class BatterieTests:
         POST : renvoie l'horodatage de la batterie. Ne modifie rien.
         """
         return self.__horodatage
+
+    @property
+    def declenchement(self) -> Declenchement:
+        """Donne la façon dont la batterie a été lancée.
+
+        PRE : aucune.
+        POST : renvoie MANUEL ou PERIODIQUE (EF-03.7). Ne modifie rien.
+        """
+        return self.__declenchement
 
     @property
     def mesures(self) -> tuple[Mesure, ...]:
@@ -80,7 +94,7 @@ if __name__ == "__main__":
     mesure_ko = Mesure(
         instant, Couche.L7, Verdict.KO, None, "délai dépassé"
     )
-    batterie = BatterieTests(instant)
+    batterie = BatterieTests(instant, Declenchement.MANUEL)
 
     print("Scénario : la propriété mesures renvoie un tuple")
     attendu = tuple
@@ -92,7 +106,7 @@ if __name__ == "__main__":
 
     def batterie_avec(couche: Couche, verdict: Verdict) -> BatterieTests:
         """Batterie de test : une seule mesure de la couche et du verdict."""
-        nouvelle = BatterieTests(instant)
+        nouvelle = BatterieTests(instant, Declenchement.MANUEL)
         nouvelle.ajouter([Mesure(instant, couche, verdict, None, "test")])
         return nouvelle
 
@@ -125,7 +139,7 @@ if __name__ == "__main__":
     print("Scénario : modifier la liste transmise ne modifie pas la "
           "batterie")
     mesures_a_encoder = [mesure_ok]
-    batterie_2 = BatterieTests(instant)
+    batterie_2 = BatterieTests(instant, Declenchement.MANUEL)
     batterie_2.ajouter(mesures_a_encoder)
     mesures_a_encoder.append(mesure_ko)
     attendu = (mesure_ok,)

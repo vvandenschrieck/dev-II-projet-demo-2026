@@ -7,6 +7,7 @@ from moniteur.domaine.batterie_tests import BatterieTests
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.enumerations import (
     Couche,
+    Declenchement,
     StatutDisponibilite,
     StatutPerformance,
     Verdict,
@@ -243,16 +244,20 @@ class Site:
         self,
         testeurs: list[Testeur],
         config: ConfigurationTests,
+        declenchement: Declenchement,
         horloge: Callable[[], datetime],
     ) -> BatterieTests:
         """Lance une batterie de tests sur le site et la renvoie (EF-03.1).
 
-        config donne le délai maximal d'attente (EF-03.5) ; horloge
-        fournit l'horodatage de la batterie.
+        config donne le délai maximal d'attente (EF-03.5) ;
+        declenchement dit si la batterie est lancée à la demande ou
+        automatiquement (EF-03.7) ; horloge fournit l'horodatage de la
+        batterie.
 
         PRE : config.timeout_s > 0 (précondition de Testeur.executer).
         POST : renvoie la nouvelle batterie, datée de l'instant donné
-               par horloge (appelée une fois). Les testeurs sont
+               par horloge (appelée une fois) et portant le
+               déclenchement donné. Les testeurs sont
                exécutés dans l'ordre des couches L3, L4, L7 (à couche
                égale, dans l'ordre reçu) et leurs mesures sont ajoutées
                à la batterie dans cet ordre. Dès que la batterie est
@@ -268,7 +273,7 @@ class Site:
             raise ValueError(
                 "Une batterie de tests demande au moins un testeur."
             )
-        batterie = BatterieTests(horloge())
+        batterie = BatterieTests(horloge(), declenchement)
         for testeur in self.__trier_par_couche(testeurs):
             if batterie.interrompue:
                 break
@@ -357,6 +362,7 @@ if __name__ == "__main__":
 
     INSTANT = datetime(2026, 10, 17, 14, 30)
     CONFIG = ConfigurationTests(5.0)
+    MANUEL = Declenchement.MANUEL
 
     def fausse_horloge() -> datetime:
         """Horloge de test : renvoie toujours le même instant."""
@@ -452,7 +458,7 @@ if __name__ == "__main__":
 
     print("Scénario : batterie sans aucune mesure : statut INCONNU")
     site_vide = Site("ClientABC", "clientabc.be")
-    site_vide.lancer_batterie([TesteurVide()], CONFIG, fausse_horloge)
+    site_vide.lancer_batterie([TesteurVide()], CONFIG, MANUEL, fausse_horloge)
     attendu = StatutDisponibilite.INCONNU
     obtenu = site_vide.statut_disponibilite
     print(f"  attendu : {attendu}")
@@ -464,7 +470,7 @@ if __name__ == "__main__":
           "(critère 4)")
     site_200 = Site("ClientABC", "clientabc.be")
     site_200.lancer_batterie(
-        [FauxTesteur(Verdict.OK, "200")], CONFIG, fausse_horloge
+        [FauxTesteur(Verdict.OK, "200")], CONFIG, MANUEL, fausse_horloge
     )
     attendu = StatutDisponibilite.DISPONIBLE
     obtenu = site_200.statut_disponibilite
@@ -486,7 +492,7 @@ if __name__ == "__main__":
           "(critère 6)")
     site_404 = Site("ClientABC", "clientabc.be")
     site_404.lancer_batterie(
-        [FauxTesteur(Verdict.KO, "404")], CONFIG, fausse_horloge
+        [FauxTesteur(Verdict.KO, "404")], CONFIG, MANUEL, fausse_horloge
     )
     attendu = StatutDisponibilite.INDISPONIBLE
     obtenu = site_404.statut_disponibilite
@@ -499,10 +505,10 @@ if __name__ == "__main__":
           "dernière batterie")
     site_retabli = Site("ClientABC", "clientabc.be")
     site_retabli.lancer_batterie(
-        [FauxTesteur(Verdict.KO, "500")], CONFIG, fausse_horloge
+        [FauxTesteur(Verdict.KO, "500")], CONFIG, MANUEL, fausse_horloge
     )
     site_retabli.lancer_batterie(
-        [FauxTesteur(Verdict.OK, "200")], CONFIG, fausse_horloge
+        [FauxTesteur(Verdict.OK, "200")], CONFIG, MANUEL, fausse_horloge
     )
     attendu = StatutDisponibilite.DISPONIBLE
     obtenu = site_retabli.statut_disponibilite
@@ -517,6 +523,7 @@ if __name__ == "__main__":
     site_mixte.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200"), FauxTesteur(Verdict.KO, "500")],
         CONFIG,
+        MANUEL,
         fausse_horloge,
     )
     attendu = StatutDisponibilite.INDISPONIBLE
@@ -530,7 +537,9 @@ if __name__ == "__main__":
           "(EF-03.5)")
     testeur_espion = FauxTesteur(Verdict.OK, "200")
     site_espion = Site("ClientABC", "clientabc.be")
-    site_espion.lancer_batterie([testeur_espion], CONFIG, fausse_horloge)
+    site_espion.lancer_batterie(
+        [testeur_espion], CONFIG, MANUEL, fausse_horloge
+    )
     attendu = [5.0]
     obtenu = testeur_espion.delais_recus
     print(f"  attendu : {attendu}")
@@ -548,6 +557,7 @@ if __name__ == "__main__":
             FauxTesteur(Verdict.OK, "443", Couche.L4),
         ],
         CONFIG,
+        MANUEL,
         fausse_horloge,
     )
     attendu = [Couche.L3, Couche.L4, Couche.L7]
@@ -567,6 +577,7 @@ if __name__ == "__main__":
             FauxTesteur(Verdict.OK, "200", Couche.L7),
         ],
         CONFIG,
+        MANUEL,
         fausse_horloge,
     )
     attendu = [Couche.L3, Couche.L4]
@@ -594,6 +605,7 @@ if __name__ == "__main__":
             FauxTesteur(Verdict.OK, "200", Couche.L7),
         ],
         CONFIG,
+        MANUEL,
         fausse_horloge,
     )
     attendu = StatutDisponibilite.DISPONIBLE
@@ -607,7 +619,10 @@ if __name__ == "__main__":
           "INDISPONIBLE (RM-06)")
     site_l3_seul = Site("ClientABC", "clientabc.be")
     site_l3_seul.lancer_batterie(
-        [FauxTesteur(Verdict.KO, "0/6", Couche.L3)], CONFIG, fausse_horloge
+        [FauxTesteur(Verdict.KO, "0/6", Couche.L3)],
+        CONFIG,
+        MANUEL,
+        fausse_horloge,
     )
     attendu = StatutDisponibilite.INDISPONIBLE
     obtenu = site_l3_seul.statut_disponibilite
@@ -623,7 +638,7 @@ if __name__ == "__main__":
     def statut_perf(*testeurs: Testeur) -> StatutPerformance:
         """Teste un site neuf avec ces testeurs et renvoie sa performance."""
         site = Site("ClientABC", "clientabc.be")
-        site.lancer_batterie(list(testeurs), CONFIG, fausse_horloge)
+        site.lancer_batterie(list(testeurs), CONFIG, MANUEL, fausse_horloge)
         return site.statut_performance(CONFIG)
 
     print("Scénario : RTT L3 supérieur au seuil : DEGRADEES (RM-08)")
@@ -679,11 +694,13 @@ if __name__ == "__main__":
     site_fenetre.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200", Couche.L7, 0.9)],
         CONFIG,
+        MANUEL,
         horloge_fixee(INSTANT - timedelta(minutes=45)),
     )
     site_fenetre.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200", Couche.L7, 0.1)],
         CONFIG,
+        MANUEL,
         fausse_horloge,
     )
     attendu = StatutPerformance.NORMALES
@@ -706,6 +723,7 @@ if __name__ == "__main__":
     site_age.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200")],
         CONFIG,
+        MANUEL,
         horloge_fixee(INSTANT - timedelta(minutes=30)),
     )
     print("Scénario : dernier test il y a exactement 30 minutes : pas "
@@ -720,6 +738,7 @@ if __name__ == "__main__":
     site_age.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200")],
         CONFIG,
+        MANUEL,
         horloge_fixee(INSTANT - timedelta(minutes=31)),
     )
     print("Scénario : dernier test il y a 31 minutes : statut ancien")
@@ -745,12 +764,14 @@ if __name__ == "__main__":
         [FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.1),
          FauxTesteur(Verdict.OK, "200", Couche.L7, 0.2)],
         CONFIG,
+        MANUEL,
         horloge_fixee(INSTANT - timedelta(minutes=45)),
     )
     site_ecart.lancer_batterie(
         [FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.3),
          FauxTesteur(Verdict.OK, "200", Couche.L7, 0.6)],
         CONFIG,
+        MANUEL,
         fausse_horloge,
     )
     site_recent = Site("ClientABC", "clientabc.be")
@@ -758,6 +779,7 @@ if __name__ == "__main__":
         site_recent.lancer_batterie(
             [FauxTesteur(Verdict.OK, "6/6", Couche.L3, 0.1)],
             CONFIG,
+            MANUEL,
             fausse_horloge,
         )
     print("Scénario : toutes les batteries dans la fenêtre : pas "
@@ -790,11 +812,27 @@ if __name__ == "__main__":
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
     print("-" * 40)
 
+    print("Scénario : une batterie lancée automatiquement porte le "
+          "déclenchement PERIODIQUE (EF-03.7)")
+    site_periodique = Site("ClientABC", "clientabc.be")
+    batterie_periodique = site_periodique.lancer_batterie(
+        [FauxTesteur(Verdict.OK, "200")],
+        CONFIG,
+        Declenchement.PERIODIQUE,
+        fausse_horloge,
+    )
+    attendu = Declenchement.PERIODIQUE
+    obtenu = batterie_periodique.declenchement
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
     print("Scénario : lancer une batterie sans testeur")
     attendu = "ValueError"
     try:
         Site("ClientABC", "clientabc.be").lancer_batterie(
-            [], CONFIG, fausse_horloge
+            [], CONFIG, MANUEL, fausse_horloge
         )
         obtenu = "aucune erreur"
     except ValueError:
