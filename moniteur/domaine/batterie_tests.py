@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from moniteur.domaine.enumerations import Verdict
 from moniteur.domaine.mesure import Mesure
 
 
@@ -46,6 +47,20 @@ class BatterieTests:
         """
         return tuple(self.__mesures)
 
+    @property
+    def interrompue(self) -> bool:
+        """Dit si la batterie doit s'arrêter après ses mesures (EF-03.2).
+
+        PRE : aucune.
+        POST : renvoie True si une mesure KO porte sur une couche
+               bloquante (L4), False sinon. Un échec en L3 n'interrompt
+               pas la batterie. Ne modifie rien.
+        """
+        for mesure in self.__mesures:
+            if mesure.couche.bloquante and mesure.verdict == Verdict.KO:
+                return True
+        return False
+
     def ajouter(self, mesures: list[Mesure]) -> None:
         """Ajoute à la batterie les mesures renvoyées par un testeur.
 
@@ -70,6 +85,38 @@ if __name__ == "__main__":
     print("Scénario : la propriété mesures renvoie un tuple")
     attendu = tuple
     obtenu = type(batterie.mesures)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    def batterie_avec(couche: Couche, verdict: Verdict) -> BatterieTests:
+        """Batterie de test : une seule mesure de la couche et du verdict."""
+        nouvelle = BatterieTests(instant)
+        nouvelle.ajouter([Mesure(instant, couche, verdict, None, "test")])
+        return nouvelle
+
+    print("Scénario : une mesure KO en L4 interrompt la batterie "
+          "(EF-03.2)")
+    attendu = True
+    obtenu = batterie_avec(Couche.L4, Verdict.KO).interrompue
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : une mesure KO en L3 n'interrompt pas la batterie "
+          "(Q-02, RM-06)")
+    attendu = False
+    obtenu = batterie_avec(Couche.L3, Verdict.KO).interrompue
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : une mesure OK en L4 n'interrompt pas la batterie")
+    attendu = False
+    obtenu = batterie_avec(Couche.L4, Verdict.OK).interrompue
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
