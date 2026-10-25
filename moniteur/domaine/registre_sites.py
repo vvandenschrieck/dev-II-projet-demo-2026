@@ -50,7 +50,7 @@ class RegistreSites:
         existant = self.__chercher(site.nom)
         if existant is not None:
             raise ValueError(
-                f"Un site nommé « {existant.nom} » existe déjà (EF-01.2)."
+                f"Un site nommé « {existant.nom} » existe déjà."
             )
         self.__sites.append(site)
         return site

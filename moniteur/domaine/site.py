@@ -47,7 +47,7 @@ class Site:
             raise ValueError("Le nom du site ne peut pas être vide.")
         if uri_principale == "":
             raise ValueError(
-                "L'URI principale du site ne peut pas être vide (EF-01.3)."
+                "L'URI principale du site ne peut pas être vide."
             )
         if "://" not in uri_principale:
             uri_principale = SCHEMA_PAR_DEFAUT + uri_principale
