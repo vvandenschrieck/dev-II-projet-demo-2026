@@ -30,7 +30,8 @@ class Site:
     espace au début ni à la fin, et ne changent jamais ;
     - l'URI principale porte toujours un schéma ;
     - la première page est la page principale : elle s'appelle
-      « Page d'accueil » et son URI est l'URI principale (EF-01.1) ;
+      « Page d'accueil », son URI est l'URI principale (EF-01.1) et
+      elle ne peut pas être supprimée (EF-01.5) ;
     - deux pages du site n'ont jamais le même nom (casse ignorée,
       EF-01.4) ni la même URI (EF-01.6) ;
     - l'historique contient les batteries dans l'ordre de
@@ -127,6 +128,37 @@ class Site:
                 )
         self.__pages.append(page)
         return page
+
+    def supprimer_page(self, nom: str) -> None:
+        """Retire du site la page qui porte ce nom (EF-01.5).
+
+        La comparaison des noms ne tient pas compte de la casse. Les
+        mesures déjà enregistrées dans les batteries sont conservées.
+
+        PRE : aucune.
+        POST : la page de ce nom n'est plus dans les pages du site (les
+               espaces de début et de fin de nom sont ignorés).
+               Exception ValueError : si aucune page du site ne porte ce
+               nom.
+               Exception ValueError : si c'est la page principale.
+               Si une exception est levée, le site n'est pas modifié.
+        """
+        page = self.__chercher_page(nom)
+        if page is None:
+            raise ValueError(f"Aucune page nommée « {nom.strip()} ».")
+        if page is self.__pages[0]:
+            raise ValueError(
+                "La page principale ne peut pas être supprimée."
+            )
+        self.__pages.remove(page)
+
+    def __chercher_page(self, nom: str) -> Page | None:
+        """Renvoie la page qui porte ce nom, ou None si elle n'existe pas."""
+        nom_cherche = nom.strip().lower()
+        for page in self.__pages:
+            if page.nom.lower() == nom_cherche:
+                return page
+        return None
 
     @property
     def derniere_batterie(self) -> BatterieTests | None:
@@ -1005,6 +1037,41 @@ if __name__ == "__main__":
     print("Scénario : après les deux refus, le site a toujours 3 pages")
     attendu = ["Page d'accueil", "PageA", "PageB"]
     obtenu = noms_des_pages(site_pages)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    def resultat_suppression(site: Site, nom: str) -> str:
+        """Tente de supprimer une page et renvoie « ok » ou « ValueError »."""
+        try:
+            site.supprimer_page(nom)
+            return "ok"
+        except ValueError:
+            return "ValueError"
+
+    print("Scénario : suppression de « PageA », qui existe (EF-01.5)")
+    attendu = ("ok", ["Page d'accueil", "PageB"])
+    resultat = resultat_suppression(site_pages, "PageA")
+    obtenu = (resultat, noms_des_pages(site_pages))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : suppression de « PageA », qui n'existe plus "
+          "(EF-01.5)")
+    attendu = "ValueError"
+    obtenu = resultat_suppression(site_pages, "PageA")
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : suppression de la page principale (EF-01.5)")
+    attendu = ("ValueError", ["Page d'accueil", "PageB"])
+    resultat = resultat_suppression(site_pages, "Page d'accueil")
+    obtenu = (resultat, noms_des_pages(site_pages))
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
