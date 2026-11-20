@@ -12,9 +12,8 @@ from moniteur.domaine.enumerations import (
     StatutPerformance,
     Verdict,
 )
+from moniteur.domaine.page import SCHEMA_PAR_DEFAUT
 from moniteur.domaine.testeur import Testeur
-
-SCHEMA_PAR_DEFAUT = "https://"
 
 
 class Site:
