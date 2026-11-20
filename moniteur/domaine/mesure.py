@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from moniteur.domaine.enumerations import Couche, Verdict
+from moniteur.domaine.page import Page
 
 
 @dataclass(frozen=True)
@@ -15,8 +16,10 @@ class Mesure:
     réponse en secondes et un diagnostic (code HTTP ou nature de
     l'erreur). La durée vaut None lorsqu'aucune réponse n'a été reçue :
     ce n'est pas une durée nulle (page MVP, section 2.1, et EF-03.5).
+    Une mesure L7 porte sur une page du site ; les mesures L3 et L4
+    portent sur l'hôte, et leur page vaut None.
 
-    INVARIANT : les cinq champs ne changent jamais après la création
+    INVARIANT : les six champs ne changent jamais après la création
     (classe figée). Le constructeur, généré par la dataclass, ne
     contrôle pas les valeurs reçues.
     """
@@ -26,6 +29,7 @@ class Mesure:
     verdict: Verdict
     duree_s: float | None
     diagnostic: str | None
+    page: Page | None = None
 
 
 if __name__ == "__main__":

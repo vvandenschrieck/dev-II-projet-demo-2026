@@ -12,6 +12,7 @@ from moniteur.domaine.enumerations import (
     StatutPerformance,
     Verdict,
 )
+from moniteur.domaine.mesure import Mesure
 from moniteur.domaine.page import SCHEMA_PAR_DEFAUT, Page
 from moniteur.domaine.testeur import Testeur
 
@@ -171,6 +172,25 @@ class Site:
         if len(self.__historique) == 0:
             return None
         return self.__historique[-1]
+
+    def historique_page(self, page: Page) -> tuple[Mesure, ...]:
+        """Donne les mesures de toutes les batteries qui portent sur une page.
+
+        Les mesures d'une page supprimée restent dans l'historique
+        (EF-01.5).
+
+        PRE : aucune.
+        POST : renvoie un tuple des mesures dont la page est celle donnée,
+               de la plus ancienne batterie à la plus récente. Le tuple
+               est vide si aucune mesure ne porte sur cette page. Ne
+               modifie rien.
+        """
+        return tuple(
+            mesure
+            for batterie in self.__historique
+            for mesure in batterie.mesures
+            if mesure.page is page
+        )
 
     @property
     def statut_disponibilite(self) -> StatutDisponibilite:
@@ -461,8 +481,6 @@ class Site:
 
 
 if __name__ == "__main__":
-    from moniteur.domaine.mesure import Mesure
-
     INSTANT = datetime(2026, 10, 17, 14, 30)
     CONFIG = ConfigurationTests(5.0)
     MANUEL = Declenchement.MANUEL
@@ -1072,6 +1090,50 @@ if __name__ == "__main__":
     attendu = ("ValueError", ["Page d'accueil", "PageB"])
     resultat = resultat_suppression(site_pages, "Page d'accueil")
     obtenu = (resultat, noms_des_pages(site_pages))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    class FauxTesteurParPage(Testeur):
+        """Testeur de test : une mesure L7 OK par page du site, sans réseau."""
+
+        @property
+        def couche(self) -> Couche:
+            """Donne la couche testée : L7."""
+            return Couche.L7
+
+        def executer(
+            self, site: Site, timeout_s: float, horodatage: datetime
+        ) -> list[Mesure]:
+            """Renvoie une mesure OK pour chaque page du site."""
+            return [
+                Mesure(horodatage, Couche.L7, Verdict.OK, 0.1, "200", page)
+                for page in site.pages
+            ]
+
+    site_historique = Site("ClientABC", "clientabc.be")
+    page_a = site_historique.ajouter_page("PageA", "clientabc.be/a")
+    for _ in range(2):
+        site_historique.lancer_batterie(
+            [FauxTesteurParPage()], CONFIG, MANUEL, fausse_horloge
+        )
+
+    print("Scénario : l'historique d'une page rassemble ses mesures de "
+          "toutes les batteries")
+    attendu = (2, {"PageA"})
+    mesures_a = site_historique.historique_page(page_a)
+    obtenu = (len(mesures_a), {mesure.page.nom for mesure in mesures_a})
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : les mesures d'une page supprimée sont conservées "
+          "(EF-01.5)")
+    site_historique.supprimer_page("PageA")
+    attendu = 2
+    obtenu = len(site_historique.historique_page(page_a))
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
