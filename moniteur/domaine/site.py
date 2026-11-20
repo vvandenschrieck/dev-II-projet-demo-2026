@@ -12,20 +12,27 @@ from moniteur.domaine.enumerations import (
     StatutPerformance,
     Verdict,
 )
-from moniteur.domaine.page import SCHEMA_PAR_DEFAUT
+from moniteur.domaine.page import SCHEMA_PAR_DEFAUT, Page
 from moniteur.domaine.testeur import Testeur
+
+NOM_PAGE_PRINCIPALE = "Page d'accueil"
 
 
 class Site:
     """Site web de la cliente, identifié par son nom.
 
     Un site est défini par un nom et une URI principale (EF-01.1). Il
-    conserve l'historique des batteries de tests lancées sur lui.
+    possède des pages (la première est la page principale) et conserve
+    l'historique des batteries de tests lancées sur lui.
 
     INVARIANT :
     - le nom et l'URI principale ne sont jamais vides, sans
     espace au début ni à la fin, et ne changent jamais ;
     - l'URI principale porte toujours un schéma ;
+    - la première page est la page principale : elle s'appelle
+      « Page d'accueil » et son URI est l'URI principale (EF-01.1) ;
+    - deux pages du site n'ont jamais le même nom (casse ignorée,
+      EF-01.4) ni la même URI (EF-01.6) ;
     - l'historique contient les batteries dans l'ordre de
       leur lancement.
     """
@@ -34,7 +41,8 @@ class Site:
         """Crée un site à partir de son nom et de son URI principale.
 
         PRE : aucune.
-        POST : le site est créé, sans aucune batterie. Les espaces au
+        POST : le site est créé, sans aucune batterie, avec une seule
+               page : la page principale (EF-01.1). Les espaces au
                début et à la fin de nom et de uri_principale sont
                retirés. Une URI sans schéma (« exemple.be ») reçoit
                « https:// » par défaut.
@@ -54,6 +62,9 @@ class Site:
             uri_principale = SCHEMA_PAR_DEFAUT + uri_principale
         self.__nom = nom
         self.__uri_principale = uri_principale
+        self.__pages: list[Page] = [
+            Page(NOM_PAGE_PRINCIPALE, uri_principale)
+        ]
         self.__historique: list[BatterieTests] = []
 
     @property
@@ -75,6 +86,47 @@ class Site:
                rien.
         """
         return self.__uri_principale
+
+    @property
+    def pages(self) -> tuple[Page, ...]:
+        """Donne les pages du site, la page principale en premier.
+
+        PRE : aucune.
+        POST : renvoie un tuple des pages, dans l'ordre de leur ajout
+               (copie : le code extérieur ne peut pas modifier la liste
+               interne). Ne modifie rien.
+        """
+        return tuple(self.__pages)
+
+    def ajouter_page(self, nom: str, uri: str) -> Page:
+        """Crée une page, l'ajoute au site et la renvoie (EF-01.4).
+
+        La comparaison des noms ne tient pas compte de la casse.
+
+        PRE : aucune.
+        POST : renvoie la page créée, qui est ajoutée à la fin des
+               pages du site. Une URI sans schéma reçoit « https:// ».
+               Exception ValueError : si le nom est vide.
+               Exception ValueError : si l'URI est vide.
+               Exception ValueError : si une page du site porte déjà ce
+               nom (EF-01.4).
+               Exception ValueError : si une page du site a déjà cette
+               URI (EF-01.6).
+               Si une exception est levée, le site n'est pas modifié.
+        """
+        page = Page(nom, uri)
+        for existante in self.__pages:
+            if existante.nom.lower() == page.nom.lower():
+                raise ValueError(
+                    f"Une page nommée « {existante.nom} » existe déjà."
+                )
+            if existante.uri == page.uri:
+                raise ValueError(
+                    f"La page « {existante.nom} » a déjà l'URI "
+                    f"{existante.uri}."
+                )
+        self.__pages.append(page)
+        return page
 
     @property
     def derniere_batterie(self) -> BatterieTests | None:
@@ -895,6 +947,64 @@ if __name__ == "__main__":
         obtenu = "aucune erreur"
     except ValueError:
         obtenu = "ValueError"
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    def noms_des_pages(site: Site) -> list[str]:
+        """Renvoie les noms des pages du site, dans l'ordre."""
+        return [page.nom for page in site.pages]
+
+    def resultat_ajout(site: Site, nom: str, uri: str) -> str:
+        """Tente d'ajouter une page et renvoie « ok » ou « ValueError »."""
+        try:
+            site.ajouter_page(nom, uri)
+            return "ok"
+        except ValueError:
+            return "ValueError"
+
+    print("Scénario : un nouveau site a une page principale « Page "
+          "d'accueil » (EF-01.1)")
+    site_pages = Site("ClientABC", "clientabc.be")
+    attendu = [("Page d'accueil", "https://clientabc.be")]
+    obtenu = [(page.nom, page.uri) for page in site_pages.pages]
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : ajout de « PageA » puis « PageB » (EF-01.4)")
+    site_pages.ajouter_page("PageA", "clientabc.be/a")
+    site_pages.ajouter_page("PageB", "clientabc.be/b")
+    attendu = ["Page d'accueil", "PageA", "PageB"]
+    obtenu = noms_des_pages(site_pages)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : ajout d'un second « PageA », même à la casse près "
+          "(EF-01.4)")
+    attendu = "ValueError"
+    obtenu = resultat_ajout(site_pages, "pagea", "clientabc.be/autre")
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : nouvelle page avec l'URI de la page principale, "
+          "sous un autre nom (EF-01.6)")
+    attendu = "ValueError"
+    obtenu = resultat_ajout(site_pages, "Copie", "https://clientabc.be")
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : après les deux refus, le site a toujours 3 pages")
+    attendu = ["Page d'accueil", "PageA", "PageB"]
+    obtenu = noms_des_pages(site_pages)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
