@@ -54,11 +54,14 @@ class Declenchement(Enum):
 class StatutDisponibilite(Enum):
     """Statut de disponibilité d'un site, calculé sur sa dernière batterie.
 
-    INCONNU tant que le site n'a jamais été testé ou que sa dernière
-    batterie n'a aucune mesure (RM-03, RM-06, page MVP section 2.1).
+    PARTIELLEMENT_INDISPONIBLE quand certaines pages seulement ne se
+    chargent pas (RM-04, RM-06). INCONNU tant que le site n'a jamais été
+    testé ou que sa dernière batterie n'a aucune mesure (RM-03, RM-06,
+    page MVP section 2.1).
     """
 
     DISPONIBLE = auto()
+    PARTIELLEMENT_INDISPONIBLE = auto()
     INDISPONIBLE = auto()
     INCONNU = auto()
 

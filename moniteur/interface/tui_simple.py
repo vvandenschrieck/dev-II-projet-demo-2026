@@ -24,10 +24,12 @@ from moniteur.domaine.testeur import Testeur
 VERT = "\033[32m"
 ROUGE = "\033[31m"
 JAUNE = "\033[33m"
+ORANGE = "\033[38;5;208m"
 REINITIALISER = "\033[0m"
 
 COULEURS = {
     StatutDisponibilite.DISPONIBLE: VERT,
+    StatutDisponibilite.PARTIELLEMENT_INDISPONIBLE: ORANGE,
     StatutDisponibilite.INDISPONIBLE: ROUGE,
     StatutDisponibilite.INCONNU: JAUNE,
 }
@@ -175,8 +177,10 @@ def afficher_site(
             and performance == StatutPerformance.DEGRADEES):
         couleur = JAUNE
     rtt = formater_duree(site.rtt_moyen(config), site.ecart_rtt(config))
+    accueil = site.pages[0]
     chargement = formater_duree(
-        site.chargement_moyen(config), site.ecart_chargement(config)
+        site.chargement_moyen(config, accueil),
+        site.ecart_chargement(config, accueil),
     )
     ligne = (f"{site.nom:<15} {statut.name:<12} {performance.name:<11} "
              f"{rtt:<16} {chargement:<16} {horodatage:<28} "

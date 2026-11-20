@@ -28,6 +28,7 @@ from moniteur.domaine.testeur import Testeur
 
 COULEURS = {
     StatutDisponibilite.DISPONIBLE: "green",
+    StatutDisponibilite.PARTIELLEMENT_INDISPONIBLE: "dark_orange",
     StatutDisponibilite.INDISPONIBLE: "red",
     StatutDisponibilite.INCONNU: "yellow",
 }
@@ -345,8 +346,8 @@ class MoniteurApp(App):
                 site.rtt_moyen(self.__config), site.ecart_rtt(self.__config)
             ),
             formater_duree(
-                site.chargement_moyen(self.__config),
-                site.ecart_chargement(self.__config),
+                site.chargement_moyen(self.__config, site.pages[0]),
+                site.ecart_chargement(self.__config, site.pages[0]),
             ),
             horodatage,
             diagnostic,

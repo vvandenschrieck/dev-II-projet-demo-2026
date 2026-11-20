@@ -197,32 +197,33 @@ class Site:
         """Calcule le statut de disponibilité sur la dernière batterie.
 
         Le statut n'est pas enregistré : il est recalculé à chaque
-        lecture (RM-03, page MVP section 3.2).
+        lecture (RM-03, RM-04, RM-06).
 
         PRE : aucune.
         POST : renvoie INCONNU si le site n'a jamais été testé ou si sa
-               dernière batterie n'a aucune mesure, INDISPONIBLE si une
-               mesure L4 ou L7 de la dernière batterie est KO, et
-               DISPONIBLE sinon. Une mesure L3 KO ne rend le site
-               indisponible que si la batterie n'a aucune mesure L4 ou
-               L7 : une mesure d'une de ces couches (forcément OK à ce
-               stade) la compense, l'ICMP étant souvent bloqué (RM-06,
-               Q-02). Ne modifie rien.
+               dernière batterie n'a aucune mesure. Renvoie
+               INDISPONIBLE si une mesure L4 est KO, si toutes les
+               mesures L7 sont KO, ou si une mesure L3 est KO sans
+               qu'aucune mesure L4 ou L7 ne soit OK. Renvoie
+               PARTIELLEMENT_INDISPONIBLE si certaines mesures L7
+               seulement sont KO. Renvoie DISPONIBLE sinon. Une mesure
+               L4 ou L7 OK compense une mesure L3 KO, l'ICMP étant
+               souvent bloqué (RM-06, Q-02). Ne modifie rien.
         """
         batterie = self.derniere_batterie
         if batterie is None or len(batterie.mesures) == 0:
             return StatutDisponibilite.INCONNU
-        echec_l3 = False
-        mesure_l4_ou_l7 = False
-        for mesure in batterie.mesures:
-            if mesure.couche == Couche.L3:
-                echec_l3 = echec_l3 or mesure.verdict == Verdict.KO
-            elif mesure.verdict == Verdict.KO:
-                return StatutDisponibilite.INDISPONIBLE
-            else:
-                mesure_l4_ou_l7 = True
-        if echec_l3 and not mesure_l4_ou_l7:
+        mesures = batterie.mesures
+        if self.__a_un_echec(mesures, Couche.L4):
             return StatutDisponibilite.INDISPONIBLE
+        l7 = [m for m in mesures if m.couche == Couche.L7]
+        if len(l7) > 0 and all(m.verdict == Verdict.KO for m in l7):
+            return StatutDisponibilite.INDISPONIBLE
+        if (self.__a_un_echec(mesures, Couche.L3)
+                and not self.__a_une_reussite_l4_ou_l7(mesures)):
+            return StatutDisponibilite.INDISPONIBLE
+        if self.__a_un_echec(mesures, Couche.L7):
+            return StatutDisponibilite.PARTIELLEMENT_INDISPONIBLE
         return StatutDisponibilite.DISPONIBLE
 
     def statut_performance(
@@ -233,24 +234,28 @@ class Site:
         Les batteries prises en compte sont celles des
         config.fenetre_performance_min minutes qui précèdent la
         dernière batterie (celle-ci comprise). Le RTT d'une batterie est
-        la durée de sa mesure L3 ou, à défaut, de sa mesure L4. Le site
-        n'a pour l'instant qu'une page, l'URI principale (RM-08).
+        la durée de sa mesure L3 ou, à défaut, de sa mesure L4. Le temps
+        de chargement est calculé page par page (RM-08).
 
         PRE : aucune.
         POST : renvoie DEGRADEES si le RTT moyen dépasse config.seuil_l3_s
-               ou si le temps de chargement moyen (mesures L7) dépasse
-               config.seuil_l7_s. Sinon renvoie NORMALES si l'une de ces
-               deux moyennes a pu être calculée, et INCONNU si aucune
-               mesure n'a de durée. Ne modifie rien.
+               ou si le temps de chargement moyen d'une page du site
+               (mesures L7 de cette page) dépasse config.seuil_l7_s.
+               Sinon renvoie NORMALES si l'une de ces moyennes a pu être
+               calculée, et INCONNU si aucune mesure n'a de durée. Ne
+               modifie rien.
         """
         rtt_moyen_s = self.rtt_moyen(config)
-        chargement_moyen_s = self.chargement_moyen(config)
-        if rtt_moyen_s is None and chargement_moyen_s is None:
+        chargements_s = [
+            self.chargement_moyen(config, page) for page in self.__pages
+        ]
+        connus_s = [duree_s for duree_s in chargements_s
+                    if duree_s is not None]
+        if rtt_moyen_s is None and len(connus_s) == 0:
             return StatutPerformance.INCONNU
         if rtt_moyen_s is not None and rtt_moyen_s > config.seuil_l3_s:
             return StatutPerformance.DEGRADEES
-        if (chargement_moyen_s is not None
-                and chargement_moyen_s > config.seuil_l7_s):
+        if any(duree_s > config.seuil_l7_s for duree_s in connus_s):
             return StatutPerformance.DEGRADEES
         return StatutPerformance.NORMALES
 
@@ -286,40 +291,46 @@ class Site:
         globale = self.__moyenne([self.__rtt(b) for b in self.__historique])
         return self.__ecart(self.rtt_moyen(config), globale)
 
-    def chargement_moyen(self, config: ConfigurationTests) -> float | None:
-        """Donne le temps de chargement moyen de la dernière fenêtre.
+    def chargement_moyen(
+        self, config: ConfigurationTests, page: Page
+    ) -> float | None:
+        """Donne le temps de chargement moyen d'une page sur la fenêtre.
 
-        Il s'agit des mesures L7 des batteries de la fenêtre de
-        statut_performance.
+        Il s'agit des mesures L7 de cette page dans les batteries de la
+        fenêtre de statut_performance.
 
         PRE : aucune.
-        POST : renvoie le temps de chargement moyen, en secondes, ou
-               None si aucune mesure L7 de la fenêtre n'a de durée. Ne
-               modifie rien.
+        POST : renvoie le temps de chargement moyen de la page, en
+               secondes, ou None si aucune mesure L7 de cette page n'a de
+               durée dans la fenêtre. Ne modifie rien.
         """
         batteries = self.__batteries_recentes(config.fenetre_performance_min)
-        return self.__moyenne([self.__chargement(b) for b in batteries])
+        return self.__moyenne(
+            [self.__chargement(b, page) for b in batteries]
+        )
 
-    def ecart_chargement(self, config: ConfigurationTests) -> float | None:
-        """Compare le chargement moyen de la fenêtre à la moyenne globale.
+    def ecart_chargement(
+        self, config: ConfigurationTests, page: Page
+    ) -> float | None:
+        """Compare le chargement moyen d'une page à sa moyenne globale.
 
         La moyenne globale porte sur toutes les batteries du site. La
         comparaison n'a de sens que s'il existe des batteries plus
         anciennes que la fenêtre.
 
         PRE : aucune.
-        POST : renvoie l'écart relatif (chargement de la fenêtre -
-               moyenne globale) / moyenne globale. Renvoie None si
-               toutes les batteries du site sont dans la fenêtre, si
-               l'une des moyennes est inconnue ou si la moyenne globale
-               est nulle. Ne modifie rien.
+        POST : renvoie l'écart relatif (chargement de la page sur la
+               fenêtre - moyenne globale de la page) / moyenne globale.
+               Renvoie None si toutes les batteries du site sont dans la
+               fenêtre, si l'une des moyennes est inconnue ou si la
+               moyenne globale est nulle. Ne modifie rien.
         """
         if not self.__a_des_batteries_hors_fenetre(config):
             return None
         globale = self.__moyenne(
-            [self.__chargement(b) for b in self.__historique]
+            [self.__chargement(b, page) for b in self.__historique]
         )
-        return self.__ecart(self.chargement_moyen(config), globale)
+        return self.__ecart(self.chargement_moyen(config, page), globale)
 
     def statut_est_ancien(
         self, config: ConfigurationTests, horloge: Callable[[], datetime]
@@ -407,6 +418,21 @@ class Site:
         self.__historique.append(batterie)
         return batterie
 
+    def __a_un_echec(
+        self, mesures: tuple[Mesure, ...], couche: Couche
+    ) -> bool:
+        """Dit si une mesure de cette couche a un verdict KO."""
+        return any(
+            m.couche == couche and m.verdict == Verdict.KO for m in mesures
+        )
+
+    def __a_une_reussite_l4_ou_l7(self, mesures: tuple[Mesure, ...]) -> bool:
+        """Dit si une mesure L4 ou L7 a un verdict OK."""
+        return any(
+            m.couche != Couche.L3 and m.verdict == Verdict.OK
+            for m in mesures
+        )
+
     def __batteries_recentes(self, minutes: int) -> list[BatterieTests]:
         """Renvoie les batteries de la fenêtre qui précède la dernière.
 
@@ -431,14 +457,17 @@ class Site:
                     return mesure.duree_s
         return None
 
-    def __chargement(self, batterie: BatterieTests) -> float | None:
-        """Renvoie le temps de chargement d'une batterie, ou None.
+    def __chargement(
+        self, batterie: BatterieTests, page: Page
+    ) -> float | None:
+        """Renvoie le temps de chargement d'une page dans une batterie.
 
-        C'est la moyenne des durées des mesures L7 de la batterie.
+        C'est la moyenne des durées des mesures L7 de cette page dans la
+        batterie ; None si aucune n'a de durée.
         """
         return self.__moyenne([
             mesure.duree_s for mesure in batterie.mesures
-            if mesure.couche == Couche.L7
+            if mesure.couche == Couche.L7 and mesure.page is page
         ])
 
     def __a_des_batteries_hors_fenetre(
@@ -518,10 +547,14 @@ if __name__ == "__main__":
         def executer(
             self, site: Site, timeout_s: float, horodatage: datetime
         ) -> list[Mesure]:
-            """Renvoie une seule mesure, datée de l'horodatage reçu."""
+            """Renvoie une seule mesure, datée de l'horodatage reçu.
+
+            Une mesure L7 porte sur la page principale du site.
+            """
             self.delais_recus.append(timeout_s)
+            page = site.pages[0] if self.couche == Couche.L7 else None
             return [Mesure(horodatage, self.couche, self.__verdict,
-                           self.__duree_s, self.__diagnostic)]
+                           self.__duree_s, self.__diagnostic, page)]
 
     print("Scénario : URI sans schéma : « https:// » ajouté par défaut")
     attendu = "https://clientabc.be"
@@ -638,8 +671,8 @@ if __name__ == "__main__":
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
     print("-" * 40)
 
-    print("Scénario : une mesure OK et une mesure KO : INDISPONIBLE "
-          "(page MVP, section 3.2)")
+    print("Scénario : une mesure L7 OK et une mesure L7 KO : "
+          "PARTIELLEMENT_INDISPONIBLE (RM-04)")
     site_mixte = Site("ClientABC", "clientabc.be")
     site_mixte.lancer_batterie(
         [FauxTesteur(Verdict.OK, "200"), FauxTesteur(Verdict.KO, "500")],
@@ -647,7 +680,7 @@ if __name__ == "__main__":
         MANUEL,
         fausse_horloge,
     )
-    attendu = StatutDisponibilite.INDISPONIBLE
+    attendu = StatutDisponibilite.PARTIELLEMENT_INDISPONIBLE
     obtenu = site_mixte.statut_disponibilite
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
@@ -872,9 +905,11 @@ if __name__ == "__main__":
 
     print("Scénario : site jamais testé : ni moyenne ni écart")
     neuf = Site("ClientABC", "clientabc.be")
+    accueil = neuf.pages[0]
     attendu = (None, None, None, None)
     obtenu = (neuf.rtt_moyen(CONFIG), neuf.ecart_rtt(CONFIG),
-              neuf.chargement_moyen(CONFIG), neuf.ecart_chargement(CONFIG))
+              neuf.chargement_moyen(CONFIG, accueil),
+              neuf.ecart_chargement(CONFIG, accueil))
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
@@ -895,6 +930,7 @@ if __name__ == "__main__":
         MANUEL,
         fausse_horloge,
     )
+    accueil_ecart = site_ecart.pages[0]
     site_recent = Site("ClientABC", "clientabc.be")
     for _ in range(2):
         site_recent.lancer_batterie(
@@ -917,7 +953,7 @@ if __name__ == "__main__":
           "vieille de 45 minutes")
     attendu = (0.3, 0.6)
     obtenu = (round(site_ecart.rtt_moyen(CONFIG), 6),
-              round(site_ecart.chargement_moyen(CONFIG), 6))
+              round(site_ecart.chargement_moyen(CONFIG, accueil_ecart), 6))
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
@@ -927,7 +963,7 @@ if __name__ == "__main__":
           "(0,3 contre 0,2 ; 0,6 contre 0,4)")
     attendu = (0.5, 0.5)
     obtenu = (round(site_ecart.ecart_rtt(CONFIG), 6),
-              round(site_ecart.ecart_chargement(CONFIG), 6))
+              round(site_ecart.ecart_chargement(CONFIG, accueil_ecart), 6))
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
@@ -1134,6 +1170,130 @@ if __name__ == "__main__":
     site_historique.supprimer_page("PageA")
     attendu = 2
     obtenu = len(site_historique.historique_page(page_a))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    class FauxTesteurPages(Testeur):
+        """Testeur de test : une mesure L7 par page, résultats fixés.
+
+        resultats donne le verdict et la durée de chaque page, dans
+        l'ordre des pages du site.
+        """
+
+        def __init__(self, resultats: list[tuple[Verdict, float]]) -> None:
+            """Mémorise le verdict et la durée de chaque page."""
+            self.__resultats = resultats
+
+        @property
+        def couche(self) -> Couche:
+            """Donne la couche testée : L7."""
+            return Couche.L7
+
+        def executer(
+            self, site: Site, timeout_s: float, horodatage: datetime
+        ) -> list[Mesure]:
+            """Renvoie une mesure par page, selon les résultats fixés."""
+            return [
+                Mesure(horodatage, Couche.L7, verdict, duree_s, "x", page)
+                for page, (verdict, duree_s)
+                in zip(site.pages, self.__resultats)
+            ]
+
+    def site_a_trois_pages() -> Site:
+        """Crée un site avec sa page principale et deux autres pages."""
+        site = Site("ClientABC", "clientabc.be")
+        site.ajouter_page("PageA", "clientabc.be/a")
+        site.ajouter_page("PageB", "clientabc.be/b")
+        return site
+
+    def statut_trois_pages(
+        *resultats: tuple[Verdict, float], l3: Verdict | None = None
+    ) -> StatutDisponibilite:
+        """Teste un site à trois pages et renvoie son statut."""
+        site = site_a_trois_pages()
+        testeurs: list[Testeur] = [FauxTesteurPages(list(resultats))]
+        if l3 is not None:
+            testeurs.append(FauxTesteur(l3, "0/6", Couche.L3))
+            testeurs.append(FauxTesteur(Verdict.OK, "443", Couche.L4))
+        site.lancer_batterie(testeurs, CONFIG, MANUEL, fausse_horloge)
+        return site.statut_disponibilite
+
+    OK_RAPIDE = (Verdict.OK, 0.1)
+    KO_RAPIDE = (Verdict.KO, 0.1)
+
+    print("Scénario : une page sur trois en erreur : "
+          "PARTIELLEMENT_INDISPONIBLE (RM-04)")
+    attendu = StatutDisponibilite.PARTIELLEMENT_INDISPONIBLE
+    obtenu = statut_trois_pages(OK_RAPIDE, KO_RAPIDE, OK_RAPIDE)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : toutes les pages en erreur : INDISPONIBLE (RM-03)")
+    attendu = StatutDisponibilite.INDISPONIBLE
+    obtenu = statut_trois_pages(KO_RAPIDE, KO_RAPIDE, KO_RAPIDE)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : L3 KO compensé par L4, une page en erreur : "
+          "PARTIELLEMENT_INDISPONIBLE (RM-06)")
+    attendu = StatutDisponibilite.PARTIELLEMENT_INDISPONIBLE
+    obtenu = statut_trois_pages(
+        OK_RAPIDE, KO_RAPIDE, OK_RAPIDE, l3=Verdict.KO
+    )
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_lent = site_a_trois_pages()
+    site_lent.lancer_batterie(
+        [FauxTesteurPages([(Verdict.OK, 0.9), (Verdict.OK, 0.1),
+                           (Verdict.OK, 0.1)])],
+        CONFIG,
+        MANUEL,
+        fausse_horloge,
+    )
+    accueil, page_a, _ = site_lent.pages
+
+    print("Scénario : une page lente suffit à dégrader le site, même si "
+          "la moyenne de toutes les pages est sous le seuil (RM-08)")
+    attendu = (StatutPerformance.DEGRADEES, True)
+    moyenne_toutes_pages = (0.9 + 0.1 + 0.1) / 3
+    obtenu = (site_lent.statut_performance(CONFIG),
+              moyenne_toutes_pages < CONFIG.seuil_l7_s)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : le chargement moyen se calcule page par page")
+    attendu = (0.9, 0.1)
+    obtenu = (round(site_lent.chargement_moyen(CONFIG, accueil), 6),
+              round(site_lent.chargement_moyen(CONFIG, page_a), 6))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : une page lente supprimée ne dégrade plus le site "
+          "(RM-08)")
+    site_suppression = site_a_trois_pages()
+    site_suppression.lancer_batterie(
+        [FauxTesteurPages([(Verdict.OK, 0.1), (Verdict.OK, 0.1),
+                           (Verdict.OK, 0.9)])],
+        CONFIG,
+        MANUEL,
+        fausse_horloge,
+    )
+    site_suppression.supprimer_page("PageB")
+    attendu = StatutPerformance.NORMALES
+    obtenu = site_suppression.statut_performance(CONFIG)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
