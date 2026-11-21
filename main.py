@@ -6,15 +6,19 @@ l'interface choisie en ligne de commande :
     python main.py --interface simple   (valeur par défaut)
     python main.py --interface textual
 
+L'option --dashboard ouvre en plus une fenêtre passive (Tkinter) qui
+affiche l'état des sites ; elle se combine avec l'interface simple.
 L'option --demo ajoute au registre des sites d'essai, pour tester
 l'application sans les saisir (voir docs/verification-manuelle.md).
 """
 
 import argparse
+import threading
 from datetime import datetime
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.registre_sites import RegistreSites
+from moniteur.domaine.testeur import Testeur
 from moniteur.testeurs.testeur_http import TesteurHttp
 from moniteur.testeurs.testeur_icmp import TesteurIcmp
 from moniteur.testeurs.testeur_tcp import TesteurTcp
@@ -49,8 +53,10 @@ def lire_arguments() -> argparse.Namespace:
     PRE : aucune.
     POST : renvoie les arguments lus : l'attribut interface vaut
            « simple » (par défaut) ou « textual », et l'attribut demo
-           vaut True si --demo est présent. Ne modifie rien.
-           Exception SystemExit : si les arguments sont invalides ou si
+           vaut True si --demo est présent, et l'attribut dashboard vaut True
+           si --dashboard est présent. Ne modifie rien.
+           Exception SystemExit : si les arguments sont invalides (dont
+           --dashboard avec une autre interface que « simple ») ou si
            l'aide est demandée (comportement d'argparse).
     """
     analyseur = argparse.ArgumentParser(
@@ -67,7 +73,16 @@ def lire_arguments() -> argparse.Namespace:
         action="store_true",
         help="ajoute des sites d'essai au registre",
     )
-    return analyseur.parse_args()
+    analyseur.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="ouvre le dashboard passif (avec l'interface simple)",
+    )
+    arguments = analyseur.parse_args()
+    if arguments.dashboard and arguments.interface != "simple":
+        analyseur.error("--dashboard se combine seulement avec "
+                        "--interface simple")
+    return arguments
 
 
 def precharger_sites(registre: RegistreSites) -> None:
@@ -83,6 +98,42 @@ def precharger_sites(registre: RegistreSites) -> None:
         registre.ajouter_site(nom, uri)
 
 
+def lancer_avec_dashboard(
+    registre: RegistreSites,
+    testeurs: list[Testeur],
+    config: ConfigurationTests,
+) -> None:
+    """Lance l'interface simple et le dashboard passif en même temps.
+
+    Tkinter exige le fil d'exécution principal : le dashboard y tourne et
+    l'interface simple tourne dans un fil secondaire. Les deux
+    interfaces ne se connaissent pas : elles partagent seulement le
+    registre, qui prévient le dashboard de chaque changement (EF-02.3).
+
+    PRE : aucune.
+    POST : ne rend la main que lorsque le dashboard est fermé ou que
+           l'utilisatrice quitte l'interface simple, qui ferme alors le
+           dashboard. Modifie registre comme le fait l'interface simple.
+           Exception ImportError : si tkinter n'est pas installé.
+    """
+    # tkinter n'est importé que si le dashboard est demandé.
+    from moniteur.interface import dashboard_tk, tui_simple
+
+    arret = threading.Event()
+
+    def lancer_tui() -> None:
+        """Lance l'interface simple, puis demande la fermeture du dashboard."""
+        try:
+            tui_simple.lancer(
+                registre, testeurs, config, datetime.now, FREQUENCE_MIN
+            )
+        finally:
+            arret.set()
+
+    threading.Thread(target=lancer_tui, daemon=True).start()
+    dashboard_tk.lancer(registre, config, datetime.now, arret)
+
+
 def main() -> None:
     """Assemble l'application et lance l'interface choisie.
 
@@ -90,12 +141,16 @@ def main() -> None:
     POST : crée les testeurs ICMP, TCP et HTTP, la configuration
            (TIMEOUT_S, FENETRE_PERFORMANCE_MIN) et un registre vide,
            auquel elle ajoute les sites d'essai si --demo est présent.
-           Lance ensuite l'interface choisie avec l'horloge système. Ne
-           rend la main que lorsque l'utilisatrice quitte.
+           Lance ensuite l'interface choisie avec l'horloge système, et le
+           dashboard passif si --dashboard est présent (voir
+           lancer_avec_dashboard). Ne rend la main que lorsque
+           l'utilisatrice quitte.
            Exception SystemExit : si les arguments sont invalides ou si
            l'aide est demandée.
            Exception ImportError : si l'interface textual est choisie et
            que textual n'est pas installé.
+           Exception ImportError : si --dashboard est présent et que
+           tkinter n'est pas installé.
     """
     arguments = lire_arguments()
     testeurs = [TesteurIcmp(), TesteurTcp(), TesteurHttp()]
@@ -105,7 +160,9 @@ def main() -> None:
     registre = RegistreSites()
     if arguments.demo:
         precharger_sites(registre)
-    if arguments.interface == "simple":
+    if arguments.dashboard:
+        lancer_avec_dashboard(registre, testeurs, config)
+    elif arguments.interface == "simple":
         from moniteur.interface import tui_simple
         tui_simple.lancer(
             registre, testeurs, config, datetime.now, FREQUENCE_MIN

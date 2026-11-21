@@ -87,6 +87,26 @@ Pour chaque scénario, cochez la case de l'interface vérifiée.
 | 24 | Disponibilité partielle (RM-04) | Site `Partiel` / `www.google.com`, avec la page `Absente` / `https://www.google.com/page-inexistante-ephec`, puis le tester | Site PARTIELLEMENT_INDISPONIBLE, ligne du site en **orange** ; page d'accueil verte (OK, `200`) ; `Absente` rouge (KO, `404`) | ☐ | ☐ |
 | 25 | Performance calculée page par page (RM-08) | Sur `Partiel` : supprimer `Absente`, ajouter la page `Lente` / `https://httpbin.org/delay/1`, puis tester le site ; enfin supprimer `Lente` | Performance DEGRADEES alors que la page d'accueil est rapide ; ligne `Lente` **jaune** (chargement d'environ 1000 ms), page d'accueil verte ; après la suppression de `Lente`, la performance redevient NORMALES sans nouveau test (si le RTT reste sous 100 ms) | ☐ | ☐ |
 
+## Dashboard passif (ENF-05)
+
+`venv/bin/python main.py --demo --dashboard` ouvre une fenêtre Tkinter en plus
+de l'interface simple du terminal. Le dashboard se combine seulement avec
+l'interface simple pour l'instant. Tkinter doit être installé pour la version
+de Python du projet (sur macOS avec Homebrew : `brew install python-tk@3.12`).
+
+| # | Scénario | Action | Résultat attendu | OK |
+|---|---|---|---|---|
+| D1 | Affichage initial (EF-02.1) | Lancer avec `--demo --dashboard` | Une fenêtre liste les 7 sites, en jaune, statuts INCONNU, dernier test `-` ; le menu de la TUI s'affiche dans le terminal | ☐ |
+| D2 | Rafraîchissement après un test manuel (EF-02.3) | TUI, choix 2 : tester `ClientABC` | La ligne `ClientABC` du dashboard change toute seule en moins d'une seconde (vert si disponible), sans toucher à la fenêtre | ☐ |
+| D3 | Rafraîchissement à chaque site testé | TUI, choix 3 : tester tous les sites | Les lignes se mettent à jour une à une, pendant que la TUI teste ; `Absent` et `Fantome` en rouge (EF-02.4) | ☐ |
+| D4 | Ajout d'un site | TUI, choix 1 : ajouter `Nouveau` / `www.google.com` | Une nouvelle ligne jaune apparaît dans le dashboard | ☐ |
+| D5 | Modification d'un site | TUI, choix 5 : renommer `Nouveau` en `Renomme` | La ligne porte le nouveau nom | ☐ |
+| D6 | Test automatique sans action (EF-03.7) | TUI, choix 4 (surveiller), laisser tourner | Les sites jamais testés sont testés et le dashboard se met à jour sans action | ☐ |
+| D7 | Vue passive | Cliquer dans la fenêtre, sur les lignes et les titres | Rien ne se produit : ni bouton, ni saisie, ni test lancé | ☐ |
+| D8 | Fermeture depuis la TUI | TUI, choix 0 | La fenêtre se ferme et le programme se termine | ☐ |
+| D9 | Fermeture de la fenêtre | Fermer la fenêtre avec le bouton de fermeture | Le programme se termine | ☐ |
+| D10 | Combinaison refusée | `main.py --dashboard --interface textual` | Message d'erreur « --dashboard se combine seulement avec --interface simple », aucune fenêtre | ☐ |
+
 ## Sites d'essai préchargés
 
 Pour ne pas saisir les sites à la main, ajoutez `--demo` :

@@ -117,7 +117,9 @@ class VueDashboardTk:
         Ferme la fenêtre si l'arrêt a été demandé.
         """
         if self.__arret.is_set():
-            self.__racine.quit()
+            # Planifié, pas appelé directement : quit() est sans effet
+            # tant que la boucle de la fenêtre n'a pas démarré.
+            self.__racine.after(0, self.__racine.quit)
             return
         lignes = None
         while not self.__a_afficher.empty():
