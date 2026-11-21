@@ -130,8 +130,13 @@ def lancer_avec_dashboard(
         finally:
             arret.set()
 
-    threading.Thread(target=lancer_tui, daemon=True).start()
-    dashboard_tk.lancer(registre, config, datetime.now, arret)
+    def demarrer_tui() -> None:
+        """Démarre l'interface simple, une fois la fenêtre créée."""
+        threading.Thread(target=lancer_tui, daemon=True).start()
+
+    dashboard_tk.lancer(
+        registre, config, datetime.now, arret, demarrer_tui
+    )
 
 
 def main() -> None:

@@ -6,6 +6,7 @@ logique : elle montre les lignes que lui donne son présentateur
 (voir presentateur_dashboard).
 """
 
+import ctypes
 import queue
 import threading
 import tkinter as tk
@@ -41,6 +42,23 @@ INTERVALLE_LECTURE_MS = 200
 INTERVALLE_REVEIL_S = 60
 
 
+def couper_crochet_saisie() -> None:
+    """Empêche input() d'appeler Tkinter depuis un autre fil d'exécution.
+
+    Créer une fenêtre Tk installe un crochet de saisie (PyOS_InputHook)
+    que input() appelle dans un terminal pour faire vivre la fenêtre
+    pendant l'attente. Appelé depuis le fil de l'interface texte, il
+    touche à Tcl hors du fil principal et fait planter le programme
+    (« Notifier not initialized »). Ici la fenêtre vit dans sa propre
+    boucle (mainloop) : le crochet est inutile.
+
+    PRE : aucune.
+    POST : input() n'appelle plus Tkinter. Ne modifie rien d'autre.
+    """
+    crochet = ctypes.c_void_p.in_dll(ctypes.pythonapi, "PyOS_InputHook")
+    crochet.value = None
+
+
 class VueDashboardTk:
     """Fenêtre Tkinter qui affiche le tableau des sites, sans le calculer.
 
@@ -59,6 +77,7 @@ class VueDashboardTk:
                n'est disponible.
         """
         self.__racine = tk.Tk()
+        couper_crochet_saisie()
         self.__racine.title(titre)
         style = ttk.Style(self.__racine)
         style.configure("Treeview", font=("TkDefaultFont", 16),
@@ -152,11 +171,15 @@ def lancer(
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
     arret: threading.Event,
+    apres_ouverture: Callable[[], None],
 ) -> None:
     """Ouvre le dashboard et le garde à jour jusqu'à sa fermeture.
 
     arret permet à un autre fil d'exécution (l'interface active) de
-    fermer la fenêtre en le déclenchant.
+    fermer la fenêtre en le déclenchant. apres_ouverture est appelée une
+    fois la fenêtre créée, juste avant la boucle : c'est là que
+    l'appelant démarre son interface active, qui ne doit pas saisir de
+    texte avant que la fenêtre existe (voir couper_crochet_saisie).
 
     PRE : doit être appelée depuis le fil d'exécution principal (exigence
           de Tkinter).
@@ -173,4 +196,5 @@ def lancer(
     presentateur = PresentateurDashboard(
         registre, vue.afficher, config, horloge
     )
+    apres_ouverture()
     vue.boucler(presentateur.rafraichir, INTERVALLE_REVEIL_S, arret)
