@@ -101,7 +101,7 @@ de Python du projet (sur macOS avec Homebrew : `brew install python-tk@3.12`).
 | D3 | Rafraîchissement à chaque site testé | TUI, choix 3 : tester tous les sites | Les lignes se mettent à jour une à une, pendant que la TUI teste ; `Absent` et `Fantome` en rouge (EF-02.4) | ☐ |
 | D4 | Ajout d'un site | TUI, choix 1 : ajouter `Nouveau` / `www.google.com` | Une nouvelle ligne jaune apparaît dans le dashboard | ☐ |
 | D5 | Modification d'un site | TUI, choix 5 : renommer `Nouveau` en `Renomme` | La ligne porte le nouveau nom | ☐ |
-| D6 | Test automatique sans action (EF-03.7) | TUI, choix 4 (surveiller), laisser tourner | Les sites jamais testés sont testés et le dashboard se met à jour sans action | ☐ |
+| D6 | Test automatique sans action (EF-03.7) | TUI, choix 4 (surveiller), laisser tourner | Les sites jamais testés sont testés et le dashboard se met à jour sans action ; Ctrl+C dans le terminal affiche « Surveillance arrêtée. » et ramène au menu, la fenêtre reste ouverte | ☐ |
 | D7 | Vue passive | Cliquer dans la fenêtre, sur les lignes et les titres | Rien ne se produit : ni bouton, ni saisie, ni test lancé | ☐ |
 | D8 | Fermeture depuis la TUI | TUI, choix 0 | La fenêtre se ferme et le programme se termine | ☐ |
 | D9 | Fermeture de la fenêtre | Fermer la fenêtre avec le bouton de fermeture | Le programme se termine | ☐ |
