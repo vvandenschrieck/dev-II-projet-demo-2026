@@ -1,9 +1,10 @@
 """Interface texte simple : menus en print() et input().
 
-Cette interface affiche l'état des sites, puis propose un menu pour
-ajouter un site, tester un site, tester tous les sites ou surveiller les
-sites. L'écran est réaffiché après chaque action (page MVP, section 2.2)
-et, pendant la surveillance, après chaque test automatique (EF-02.3).
+Cette interface affiche l'état des sites, avec une ligne par page, puis
+propose un menu pour ajouter ou modifier un site, ajouter ou supprimer une
+page, tester un site, tester tous les sites ou surveiller les sites.
+L'écran est réaffiché après chaque action (page MVP, section 2.2) et,
+pendant la surveillance, après chaque test automatique (EF-02.3).
 """
 
 import time
@@ -12,10 +13,14 @@ from datetime import datetime
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.enumerations import (
+    Couche,
     Declenchement,
     StatutDisponibilite,
     StatutPerformance,
+    Verdict,
 )
+from moniteur.domaine.mesure import Mesure
+from moniteur.domaine.page import Page
 from moniteur.domaine.registre_sites import RegistreSites
 from moniteur.domaine.site import Site
 from moniteur.domaine.testeur import Testeur
@@ -60,8 +65,9 @@ def lancer(
            (page MVP, section 2.2), jusqu'au choix « 0 » ou jusqu'à la
            fin de la saisie (Ctrl+D, Ctrl+C), puis affiche « Au revoir. ».
            Le choix « 4 » lance la surveillance (voir surveiller).
-           Modifie registre (sites ajoutés) et les sites testés
-           (nouvelles batteries).
+           Modifie registre (sites ajoutés ou modifiés), les pages des
+           sites (ajoutées ou supprimées) et les sites testés (nouvelles
+           batteries).
            Exception ValueError : si testeurs est vide et qu'un site est
            testé.
     """
@@ -79,6 +85,12 @@ def lancer(
                 surveiller(
                     registre, testeurs, config, horloge, frequence_min
                 )
+            elif choix == "5":
+                modifier_site(registre)
+            elif choix == "6":
+                ajouter_page(registre)
+            elif choix == "7":
+                supprimer_page(registre)
             elif choix == "0":
                 break
             else:
@@ -121,7 +133,7 @@ def afficher_sites(
 
     PRE : aucune.
     POST : affiche un titre, puis un message si le registre est vide, ou
-           sinon un en-tête et une ligne par site, dans l'ordre du
+           sinon un en-tête et un bloc par site, dans l'ordre du
            registre (voir afficher_site). Ne modifie rien.
     """
     print()
@@ -129,10 +141,12 @@ def afficher_sites(
     if len(registre.sites) == 0:
         print("Aucun site. Ajoutez-en un avec le choix 1.")
         return
-    print(f"{'Nom':<15} {'Statut':<12} {'Performance':<11} "
-          f"{'RTT L3/L4':<16} {'Chargement L7':<16} "
-          f"{'Dernier test':<28} {'Diagnostic':<46} URI")
+    print(f"{'Nom':<17} {'Statut':<26} {'Performance':<11} "
+          f"{'RTT L3/L4':<16} {'Dernier test':<28} Diagnostic L3/L4")
+    print(f"  {'Page':<15} {'Verdict':<8} {'Chargement L7':<16} "
+          f"{'Diagnostic':<27} URI")
     for site in registre.sites:
+        print()
         afficher_site(site, config, horloge)
 
 
@@ -141,21 +155,22 @@ def afficher_site(
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
 ) -> None:
-    """Affiche une ligne colorée selon le statut du site (EF-02.4).
+    """Affiche le bloc d'un site : sa ligne, puis une ligne par page.
 
     PRE : aucune.
-    POST : affiche une ligne avec le nom, les statuts de disponibilité
-           et de performance (EF-02.1), le RTT et le temps de chargement
-           moyens de la dernière fenêtre avec leur écart par rapport à la
-           moyenne globale (« 85 ms (+37 %) »), l'horodatage du dernier test
-           (EF-02.2), les diagnostics de ses mesures, précédés de leur
-           couche (« L3: 6/6 sondes »), et l'URI principale. La couleur
-           suit le statut de disponibilité, mais passe au jaune pour un
-           site disponible aux performances dégradées. L'horodatage est
-           suivi de
-           « (ancien) » si les statuts datent de trop longtemps.
-           Horodatage et diagnostic valent « - » si le site n'a jamais
-           été testé. Ne modifie rien.
+    POST : affiche une ligne colorée selon le statut du site (EF-02.4)
+           avec le nom, les statuts de disponibilité et de performance
+           (EF-02.1), le RTT moyen de la dernière fenêtre avec son écart
+           par rapport à la moyenne globale (« 85 ms (+37 %) »),
+           l'horodatage du dernier test (EF-02.2) et les diagnostics des
+           mesures L3 et L4, précédés de leur couche (« L3: 6/6
+           sondes »). La couleur suit le statut de disponibilité, mais
+           passe au jaune pour un site disponible aux performances
+           dégradées. L'horodatage est suivi de « (ancien) » si les
+           statuts datent de trop longtemps. Horodatage et diagnostic
+           valent « - » si le site n'a jamais été testé. Affiche ensuite
+           une ligne par page, la page principale en premier (voir
+           afficher_page). Ne modifie rien.
     """
     statut = site.statut_disponibilite
     batterie = site.derniere_batterie
@@ -169,7 +184,7 @@ def afficher_site(
         diagnostic = ", ".join(
             f"{mesure.couche.name}: {mesure.diagnostic}"
             for mesure in batterie.mesures
-            if mesure.diagnostic is not None
+            if mesure.couche != Couche.L7 and mesure.diagnostic is not None
         )
     performance = site.statut_performance(config)
     couleur = COULEURS[statut]
@@ -177,15 +192,66 @@ def afficher_site(
             and performance == StatutPerformance.DEGRADEES):
         couleur = JAUNE
     rtt = formater_duree(site.rtt_moyen(config), site.ecart_rtt(config))
-    accueil = site.pages[0]
-    chargement = formater_duree(
-        site.chargement_moyen(config, accueil),
-        site.ecart_chargement(config, accueil),
-    )
-    ligne = (f"{site.nom:<15} {statut.name:<12} {performance.name:<11} "
-             f"{rtt:<16} {chargement:<16} {horodatage:<28} "
-             f"{diagnostic:<46} {site.uri_principale}")
+    ligne = (f"{site.nom:<17} {statut.name:<26} {performance.name:<11} "
+             f"{rtt:<16} {horodatage:<28} {diagnostic}")
     print(couleur + ligne + REINITIALISER)
+    for page in site.pages:
+        afficher_page(site, page, config)
+
+
+def afficher_page(
+    site: Site, page: Page, config: ConfigurationTests
+) -> None:
+    """Affiche la ligne d'une page, en retrait sous son site (EF-02.1).
+
+    PRE : page est une page de site.
+    POST : affiche une ligne avec le nom de la page, le verdict et le
+           diagnostic de sa dernière mesure, son temps de chargement
+           moyen avec son écart par rapport à la moyenne globale, et son
+           URI. Le verdict et le diagnostic valent « - » si la page n'a
+           jamais été testée. La ligne est rouge si le verdict est KO,
+           jaune si la page est OK mais son chargement moyen dépasse
+           config.seuil_l7_s (RM-08), verte sinon, et sans couleur si la
+           page n'a jamais été testée. Ne modifie rien.
+    """
+    mesures = site.historique_page(page)
+    derniere = mesures[-1] if len(mesures) > 0 else None
+    chargement_s = site.chargement_moyen(config, page)
+    chargement = formater_duree(
+        chargement_s, site.ecart_chargement(config, page)
+    )
+    if derniere is None:
+        verdict = "-"
+        diagnostic = "-"
+    else:
+        verdict = derniere.verdict.name
+        diagnostic = derniere.diagnostic or "-"
+    ligne = (f"  {page.nom:<15} {verdict:<8} {chargement:<16} "
+             f"{diagnostic:<27} {page.uri}")
+    print(couleur_page(derniere, chargement_s, config) + ligne
+          + REINITIALISER)
+
+
+def couleur_page(
+    derniere: Mesure | None,
+    chargement_s: float | None,
+    config: ConfigurationTests,
+) -> str:
+    """Renvoie le code ANSI de la ligne d'une page.
+
+    PRE : aucune.
+    POST : renvoie ROUGE si derniere est une mesure KO, JAUNE si elle
+           est OK mais que chargement_s dépasse config.seuil_l7_s, VERT
+           si elle est OK sinon, et une chaîne vide (aucune couleur) si
+           derniere est None. Ne modifie rien.
+    """
+    if derniere is None:
+        return ""
+    if derniere.verdict == Verdict.KO:
+        return ROUGE
+    if chargement_s is not None and chargement_s > config.seuil_l7_s:
+        return JAUNE
+    return VERT
 
 
 def demander_choix() -> str:
@@ -201,6 +267,9 @@ def demander_choix() -> str:
     print("2. Tester un site")
     print("3. Tester tous les sites")
     print("4. Surveiller (tests automatiques)")
+    print("5. Modifier un site")
+    print("6. Ajouter une page à un site")
+    print("7. Supprimer une page d'un site")
     print("0. Quitter")
     return input("Votre choix : ").strip()
 
@@ -225,6 +294,99 @@ def ajouter_site(registre: RegistreSites) -> None:
         print(f"Refus : {erreur}")
 
 
+def demander_site(registre: RegistreSites, invite: str) -> Site | None:
+    """Demande le nom d'un site et renvoie le site correspondant.
+
+    PRE : aucune.
+    POST : affiche invite et lit un nom. Renvoie le site de registre qui
+           porte ce nom, ou None après avoir affiché « Refus : » suivi
+           du motif si aucun site ne le porte. Ne modifie rien.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
+    nom = input(invite)
+    try:
+        return registre.trouver_site(nom)
+    except ValueError as erreur:
+        print(f"Refus : {erreur}")
+        return None
+
+
+def modifier_site(registre: RegistreSites) -> None:
+    """Demande un site, puis son nouveau nom et sa nouvelle URI (EF-01.2).
+
+    PRE : aucune.
+    POST : demande le nom d'un site, affiche son nom et son URI actuels,
+           puis demande un nouveau nom et une nouvelle URI principale.
+           Une saisie vide n'est pas remplacée par la valeur actuelle.
+           Si le domaine accepte la modification, une confirmation est
+           affichée. Sinon (site inconnu, nom déjà utilisé, nom ou URI
+           vide, EF-01.2 et EF-01.3, URI déjà portée par une autre page
+           du site, EF-01.6), « Refus : » suivi du motif est affiché et
+           le site n'est pas modifié.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
+    site = demander_site(registre, "Nom du site à modifier : ")
+    if site is None:
+        return
+    print(f"Nom actuel : {site.nom} — "
+          f"URI principale actuelle : {site.uri_principale}")
+    nouveau_nom = input("Nouveau nom : ")
+    nouvelle_uri = input("Nouvelle URI principale : ")
+    try:
+        registre.modifier_site(site.nom, nouveau_nom, nouvelle_uri)
+        print(f"Site « {site.nom} » modifié.")
+    except ValueError as erreur:
+        print(f"Refus : {erreur}")
+
+
+def ajouter_page(registre: RegistreSites) -> None:
+    """Demande un site, puis le nom et l'URI d'une page à lui ajouter.
+
+    PRE : aucune.
+    POST : demande le nom d'un site, puis le nom et l'URI de la page. Si
+           le domaine l'accepte, la page est ajoutée au site et une
+           confirmation est affichée. Sinon (site inconnu, nom de page
+           déjà utilisé, EF-01.4, URI déjà utilisée, EF-01.6, nom ou
+           URI vide), « Refus : » suivi du motif est affiché et le
+           site n'est pas modifié.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
+    site = demander_site(registre, "Nom du site : ")
+    if site is None:
+        return
+    nom = input("Nom de la page : ")
+    uri = input("URI de la page : ")
+    try:
+        page = site.ajouter_page(nom, uri)
+        print(f"Page « {page.nom} » ajoutée.")
+    except ValueError as erreur:
+        print(f"Refus : {erreur}")
+
+
+def supprimer_page(registre: RegistreSites) -> None:
+    """Demande un site, puis le nom de la page à lui retirer (EF-01.5).
+
+    PRE : aucune.
+    POST : demande le nom d'un site, puis celui de la page. Si le
+           domaine l'accepte, la page est retirée du site (ses mesures
+           restent dans l'historique) et une confirmation est affichée.
+           Sinon (site inconnu, page inexistante, page principale),
+           « Refus : » suivi du motif est affiché et le site n'est pas
+           modifié.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
+    site = demander_site(registre, "Nom du site : ")
+    if site is None:
+        return
+    nom = input("Nom de la page à supprimer : ")
+    try:
+        site.supprimer_page(nom)
+        print(f"Page « {nom.strip()} » supprimée "
+              "(ses mesures restent dans l'historique).")
+    except ValueError as erreur:
+        print(f"Refus : {erreur}")
+
+
 def tester_site(
     registre: RegistreSites,
     testeurs: list[Testeur],
@@ -241,11 +403,8 @@ def tester_site(
            Exception ValueError : si testeurs est vide.
            Exception EOFError : si l'entrée standard est fermée.
     """
-    nom = input("Nom du site à tester : ")
-    try:
-        site = registre.trouver_site(nom)
-    except ValueError as erreur:
-        print(f"Refus : {erreur}")
+    site = demander_site(registre, "Nom du site à tester : ")
+    if site is None:
         return
     print(f"Test de « {site.nom} » en cours...")
     site.lancer_batterie(testeurs, config, Declenchement.MANUEL, horloge)
