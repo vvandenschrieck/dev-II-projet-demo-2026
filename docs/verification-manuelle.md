@@ -110,7 +110,7 @@ de Python du projet (sur macOS avec Homebrew : `brew install python-tk@3.12`).
 | D12 | Sans sélection | Désélectionner (ou lancer sans rien sélectionner), puis « Tester le site sélectionné » | Le message « Sélectionnez d'abord un site. » apparaît sous le tableau, aucun test | ☐ |
 | D13 | Test de tous les sites (EF-03.4) | « Tester tous les sites » | Tous les sites passent en « test en cours », puis se mettent à jour l'un après l'autre ; la TUI du terminal reste utilisable | ☐ |
 | D14 | Test déjà en cours | Cliquer deux fois de suite sur « Tester tous les sites » | Le message « Test déjà en cours. » apparaît, chaque site n'est testé qu'une fois | ☐ |
-| D15 | Les deux interfaces actives (scénario 3) | Lancer un test depuis la fenêtre, puis un autre depuis la TUI (choix 2) | Le dashboard montre les deux résultats ; la TUI affiche le résultat du test fait depuis la fenêtre au prochain affichage de l'écran | ☐ |
+| D15 | Les deux interfaces actives (scénario 3) | Lancer un test depuis la fenêtre, puis un autre depuis la TUI (choix 2) | Le dashboard montre les deux résultats ; la TUI réaffiche d'elle-même l'état des sites, le menu et l'invite dès que le test fait depuis la fenêtre est terminé (sans avoir rien tapé) | ☐ |
 
 ## Sites d'essai préchargés
 

@@ -69,6 +69,9 @@ def lancer(
     POST : affiche l'état des sites puis le menu après chaque action
            (page MVP, section 2.2), jusqu'au choix « 0 » ou jusqu'à la
            fin de la saisie (Ctrl+D, Ctrl+C), puis affiche « Au revoir. ».
+           Si un autre fil d'exécution modifie le registre (test lancé
+           depuis le dashboard) pendant que l'interface attend un choix,
+           l'état des sites et le menu sont réaffichés (EF-02.3).
            Le choix « 4 » lance la surveillance (voir surveiller).
            Modifie registre (sites ajoutés ou modifiés), les pages des
            sites (ajoutées ou supprimées) et les sites testés (nouvelles
@@ -76,10 +79,23 @@ def lancer(
            Exception ValueError : si testeurs est vide et qu'un site est
            testé.
     """
+    en_attente = threading.Event()
+
+    def reafficher() -> None:
+        """Réaffiche l'écran si l'interface attend un choix du menu."""
+        if en_attente.is_set():
+            print()
+            afficher_sites(registre, config, horloge)
+            afficher_menu()
+            print("Votre choix : ", end="", flush=True)
+
+    registre.abonner(reafficher)
     try:
         while True:
             afficher_sites(registre, config, horloge)
+            en_attente.set()
             choix = demander_choix()
+            en_attente.clear()
             if choix == "1":
                 ajouter_site(registre)
             elif choix == "2":
@@ -236,13 +252,12 @@ def couleur_page(
     return VERT
 
 
-def demander_choix() -> str:
-    """Affiche le menu et renvoie le choix saisi.
+def afficher_menu() -> None:
+    """Affiche les choix du menu.
 
     PRE : aucune.
-    POST : affiche le menu, puis renvoie la saisie de l'utilisatrice
-           sans les espaces de début et de fin. Ne modifie rien.
-           Exception EOFError : si l'entrée standard est fermée.
+    POST : affiche une ligne vide puis une ligne par choix. Ne modifie
+           rien.
     """
     print()
     print("1. Ajouter un site")
@@ -253,6 +268,17 @@ def demander_choix() -> str:
     print("6. Ajouter une page à un site")
     print("7. Supprimer une page d'un site")
     print("0. Quitter")
+
+
+def demander_choix() -> str:
+    """Affiche le menu et renvoie le choix saisi.
+
+    PRE : aucune.
+    POST : affiche le menu, puis renvoie la saisie de l'utilisatrice
+           sans les espaces de début et de fin. Ne modifie rien.
+           Exception EOFError : si l'entrée standard est fermée.
+    """
+    afficher_menu()
     return input("Votre choix : ").strip()
 
 
