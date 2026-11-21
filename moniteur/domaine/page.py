@@ -12,8 +12,10 @@ class Page:
 
     INVARIANT :
     - le nom et l'URI ne sont jamais vides, sans espace au début ni à
-      la fin, et ne changent jamais ;
-    - l'URI porte toujours un schéma.
+      la fin ;
+    - l'URI porte toujours un schéma ;
+    - le nom ne change jamais ; l'URI ne change que par _changer_uri,
+      réservée au site qui possède la page.
     """
 
     def __init__(self, nom: str, uri: str) -> None:
@@ -27,15 +29,10 @@ class Page:
                Exception ValueError : si l'URI est vide.
         """
         nom = nom.strip()
-        uri = uri.strip()
         if nom == "":
             raise ValueError("Le nom de la page ne peut pas être vide.")
-        if uri == "":
-            raise ValueError("L'URI de la page ne peut pas être vide.")
-        if "://" not in uri:
-            uri = SCHEMA_PAR_DEFAUT + uri
         self.__nom = nom
-        self.__uri = uri
+        self.__uri = self.__normaliser(uri)
 
     @property
     def nom(self) -> str:
@@ -56,6 +53,31 @@ class Page:
                rien.
         """
         return self.__uri
+
+    def _changer_uri(self, uri: str) -> None:
+        """Remplace l'URI de la page (méthode interne, réservée à Site).
+
+        Le site garantit lui-même qu'aucune autre de ses pages n'a cette
+        URI (EF-01.6) : c'est pourquoi cette méthode n'est pas publique.
+
+        PRE : l'appelant (le site) a vérifié qu'aucune autre page du
+              site n'a déjà cette URI.
+        POST : l'URI de la page est remplacée. Les espaces au début et à
+               la fin sont retirés, et une URI sans schéma reçoit
+               « https:// » par défaut.
+               Exception ValueError : si l'URI est vide.
+               Si une exception est levée, la page n'est pas modifiée.
+        """
+        self.__uri = self.__normaliser(uri)
+
+    def __normaliser(self, uri: str) -> str:
+        """Renvoie l'URI sans espaces de bord, avec un schéma."""
+        uri = uri.strip()
+        if uri == "":
+            raise ValueError("L'URI de la page ne peut pas être vide.")
+        if "://" not in uri:
+            uri = SCHEMA_PAR_DEFAUT + uri
+        return uri
 
 
 if __name__ == "__main__":

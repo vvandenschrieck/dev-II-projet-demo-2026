@@ -6,8 +6,8 @@ from moniteur.domaine.site import Site
 class RegistreSites:
     """Ensemble des sites surveillés, identifiés par leur nom.
 
-    Le registre crée les sites et garantit l'unicité de leur nom
-    (EF-01.1, EF-01.2). La comparaison des noms ne tient pas compte de
+    Le registre crée et modifie les sites, et garantit l'unicité de leur
+    nom (EF-01.1, EF-01.2). La comparaison des noms ne tient pas compte de
     la casse : « ClientABC » et « clientabc » désignent le même site.
 
     INVARIANT : deux sites du registre ne portent jamais le même nom,
@@ -54,6 +54,39 @@ class RegistreSites:
             )
         self.__sites.append(site)
         return site
+
+    def modifier_site(
+        self, nom: str, nouveau_nom: str, nouvelle_uri: str
+    ) -> None:
+        """Change le nom et l'URI principale d'un site (EF-01.2, EF-01.3).
+
+        Un site peut garder son propre nom, avec une autre casse par
+        exemple : il n'est pas en conflit avec lui-même.
+
+        PRE : aucune.
+        POST : le site qui porte le nom donné a le nouveau nom et la
+               nouvelle URI principale, et l'URI de sa page principale
+               suit (les espaces de bord sont retirés, une URI sans
+               schéma reçoit « https:// »). Sa position dans le registre,
+               ses pages et ses batteries ne changent pas.
+               Exception ValueError : si aucun site ne porte le nom
+               donné.
+               Exception ValueError : si un autre site porte déjà le
+               nouveau nom, sans tenir compte de la casse (EF-01.2).
+               Exception ValueError : si le nouveau nom est vide.
+               Exception ValueError : si la nouvelle URI est vide
+               (EF-01.3).
+               Exception ValueError : si une autre page du site a déjà
+               cette URI (EF-01.6).
+               Si une exception est levée, aucun site n'est modifié.
+        """
+        site = self.trouver_site(nom)
+        existant = self.__chercher(nouveau_nom)
+        if existant is not None and existant is not site:
+            raise ValueError(
+                f"Un site nommé « {existant.nom} » existe déjà."
+            )
+        site.modifier(nouveau_nom, nouvelle_uri)
 
     def trouver_site(self, nom: str) -> Site:
         """Trouve le site qui porte ce nom, sans tenir compte de la casse.
@@ -192,6 +225,62 @@ if __name__ == "__main__":
         )
     attendu = [StatutDisponibilite.DISPONIBLE, StatutDisponibilite.DISPONIBLE]
     obtenu = [site.statut_disponibilite for site in registre.sites]
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    registre_modif = RegistreSites()
+    registre_modif.ajouter_site("ClientABC", "clientabc.be")
+    registre_modif.ajouter_site("ClientXYZ", "clientxyz.be")
+
+    def essayer_modification(nom: str, nouveau: str, uri: str) -> str:
+        """Tente de modifier un site : renvoie « ok » ou « ValueError »."""
+        try:
+            registre_modif.modifier_site(nom, nouveau, uri)
+            return "ok"
+        except ValueError:
+            return "ValueError"
+
+    def noms_et_uri() -> list[tuple[str, str]]:
+        """Renvoie le nom et l'URI principale de chaque site."""
+        return [(s.nom, s.uri_principale) for s in registre_modif.sites]
+
+    print("Scénario : modification du nom et de l'URI d'un site "
+          "(EF-01.2, EF-01.3)")
+    resultat = essayer_modification("ClientABC", "ClientDEF", "clientdef.be")
+    attendu = ("ok", [("ClientDEF", "https://clientdef.be"),
+                      ("ClientXYZ", "https://clientxyz.be")])
+    obtenu = (resultat, noms_et_uri())
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : renommer un site avec le nom d'un autre, à la casse "
+          "près : refusé, rien ne change (EF-01.2)")
+    resultat = essayer_modification("ClientDEF", "clientxyz", "autre.be")
+    attendu = ("ValueError", [("ClientDEF", "https://clientdef.be"),
+                              ("ClientXYZ", "https://clientxyz.be")])
+    obtenu = (resultat, noms_et_uri())
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : un site garde son propre nom, avec une autre casse "
+          "(pas de conflit avec lui-même)")
+    resultat = essayer_modification("ClientDEF", "CLIENTDEF", "clientdef.be")
+    attendu = ("ok", "CLIENTDEF")
+    obtenu = (resultat, registre_modif.sites[0].nom)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : modification d'un site inconnu")
+    attendu = "ValueError"
+    obtenu = essayer_modification("Inconnu", "Nouveau", "nouveau.be")
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")

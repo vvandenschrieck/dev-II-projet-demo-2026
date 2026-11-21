@@ -28,7 +28,7 @@ class Site:
 
     INVARIANT :
     - le nom et l'URI principale ne sont jamais vides, sans
-    espace au début ni à la fin, et ne changent jamais ;
+    espace au début ni à la fin, et ne changent que par modifier ;
     - l'URI principale porte toujours un schéma ;
     - la première page est la page principale : elle s'appelle
       « Page d'accueil », son URI est l'URI principale (EF-01.1) et
@@ -52,16 +52,7 @@ class Site:
                Exception ValueError : si l'URI principale est vide
                (EF-01.3).
         """
-        nom = nom.strip()
-        uri_principale = uri_principale.strip()
-        if nom == "":
-            raise ValueError("Le nom du site ne peut pas être vide.")
-        if uri_principale == "":
-            raise ValueError(
-                "L'URI principale du site ne peut pas être vide."
-            )
-        if "://" not in uri_principale:
-            uri_principale = SCHEMA_PAR_DEFAUT + uri_principale
+        nom, uri_principale = self.__valider(nom, uri_principale)
         self.__nom = nom
         self.__uri_principale = uri_principale
         self.__pages: list[Page] = [
@@ -88,6 +79,55 @@ class Site:
                rien.
         """
         return self.__uri_principale
+
+    def modifier(self, nouveau_nom: str, nouvelle_uri: str) -> None:
+        """Change le nom et l'URI principale du site (EF-01.2, EF-01.3).
+
+        La page principale reste la même page : son URI suit l'URI
+        principale, et ses mesures restent dans l'historique. L'unicité
+        du nom parmi les sites est garantie par le registre, qui est le
+        point d'entrée de la modification.
+
+        PRE : aucune.
+        POST : le site porte le nouveau nom et la nouvelle URI
+               principale, et l'URI de la page principale est mise à
+               jour. Les espaces au début et à la fin sont retirés, et
+               une URI sans schéma reçoit « https:// ». Les autres
+               pages et les batteries ne changent pas.
+               Exception ValueError : si le nom est vide.
+               Exception ValueError : si l'URI principale est vide
+               (EF-01.3).
+               Exception ValueError : si une autre page du site a déjà
+               cette URI (EF-01.6).
+               Si une exception est levée, le site n'est pas modifié.
+        """
+        nom, uri = self.__valider(nouveau_nom, nouvelle_uri)
+        for page in self.__pages[1:]:
+            if page.uri == uri:
+                raise ValueError(
+                    f"La page « {page.nom} » a déjà l'URI {page.uri}."
+                )
+        self.__nom = nom
+        self.__uri_principale = uri
+        self.__pages[0]._changer_uri(uri)
+
+    def __valider(self, nom: str, uri_principale: str) -> tuple[str, str]:
+        """Renvoie le nom et l'URI principale nettoyés, ou refuse.
+
+        Retire les espaces de bord et ajoute « https:// » à une URI sans
+        schéma. Lève ValueError si le nom ou l'URI est vide.
+        """
+        nom = nom.strip()
+        uri_principale = uri_principale.strip()
+        if nom == "":
+            raise ValueError("Le nom du site ne peut pas être vide.")
+        if uri_principale == "":
+            raise ValueError(
+                "L'URI principale du site ne peut pas être vide."
+            )
+        if "://" not in uri_principale:
+            uri_principale = SCHEMA_PAR_DEFAUT + uri_principale
+        return nom, uri_principale
 
     @property
     def pages(self) -> tuple[Page, ...]:
@@ -1294,6 +1334,62 @@ if __name__ == "__main__":
     site_suppression.supprimer_page("PageB")
     attendu = StatutPerformance.NORMALES
     obtenu = site_suppression.statut_performance(CONFIG)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    site_modif = Site("ClientABC", "clientabc.be")
+    site_modif.ajouter_page("PageA", "clientabc.be/a")
+    site_modif.lancer_batterie(
+        [FauxTesteurParPage()], CONFIG, MANUEL, fausse_horloge
+    )
+    accueil_modif = site_modif.pages[0]
+    site_modif.modifier("ClientXYZ", "clientxyz.be")
+
+    print("Scénario : modification du nom et de l'URI principale : la "
+          "page principale suit (EF-01.2)")
+    attendu = ("ClientXYZ", "https://clientxyz.be", "https://clientxyz.be")
+    obtenu = (site_modif.nom, site_modif.uri_principale,
+              site_modif.pages[0].uri)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : après la modification, la page principale est "
+          "la même et son historique est conservé")
+    attendu = (True, 1)
+    obtenu = (site_modif.pages[0] is accueil_modif,
+              len(site_modif.historique_page(accueil_modif)))
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : modification avec l'URI d'une autre page : refusée, "
+          "site inchangé (EF-01.6)")
+    try:
+        site_modif.modifier("ClientABC", "clientabc.be/a")
+        refus = "aucune erreur"
+    except ValueError:
+        refus = "ValueError"
+    attendu = ("ValueError", "ClientXYZ", "https://clientxyz.be")
+    obtenu = (refus, site_modif.nom, site_modif.pages[0].uri)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : modification avec une URI vide : refusée, site "
+          "inchangé (EF-01.3)")
+    try:
+        site_modif.modifier("ClientABC", "   ")
+        refus = "aucune erreur"
+    except ValueError:
+        refus = "ValueError"
+    attendu = ("ValueError", "ClientXYZ", "https://clientxyz.be")
+    obtenu = (refus, site_modif.nom, site_modif.uri_principale)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
