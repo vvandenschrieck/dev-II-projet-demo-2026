@@ -97,16 +97,16 @@ class VueDashboardTk:
                 couleur, background=fond, foreground="black"
             )
         self.__tableau.pack(fill="both", expand=True)
-        self.__bouton_site = ttk.Button(
-            self.__racine, text="Tester le site sélectionné"
-        )
-        self.__bouton_tous = ttk.Button(
-            self.__racine, text="Tester tous les sites"
-        )
-        self.__message = tk.StringVar()
+        # Les éléments de la barre sont ses enfants : créés avant elle, ils
+        # seraient cachés derrière elle.
         barre = ttk.Frame(self.__racine)
-        self.__bouton_site.pack(in_=barre, side="left", padx=8, pady=8)
-        self.__bouton_tous.pack(in_=barre, side="left", pady=8)
+        self.__bouton_site = ttk.Button(
+            barre, text="Tester le site sélectionné"
+        )
+        self.__bouton_tous = ttk.Button(barre, text="Tester tous les sites")
+        self.__message = tk.StringVar()
+        self.__bouton_site.pack(side="left", padx=8, pady=8)
+        self.__bouton_tous.pack(side="left", pady=8)
         ttk.Label(barre, textvariable=self.__message).pack(
             side="left", padx=16
         )
