@@ -26,6 +26,7 @@ from moniteur.domaine.enumerations import (
     StatutPerformance,
     Verdict,
 )
+from moniteur.domaine.formatage import formater_duree
 from moniteur.domaine.mesure import Mesure
 from moniteur.domaine.page import Page
 from moniteur.domaine.registre_sites import RegistreSites
@@ -46,30 +47,6 @@ MARQUE_ANCIEN = " (ancien)"
 
 # Délai, en secondes, entre deux vérifications des échéances de test.
 INTERVALLE_REVEIL_S = 60
-
-
-def formater_duree(duree_s: float | None, ecart: float | None) -> str:
-    """Formate une durée en millisecondes, suivie de son écart en %.
-
-    PRE : aucune.
-    POST : renvoie « - » si duree_s est None. Sinon renvoie la durée en
-           millisecondes (deux décimales sous 1 ms, une sous 10 ms,
-           aucune au-delà), suivie de l'écart entre parenthèses
-           (« 85 ms (+37 %) »), ou de « (-) » si ecart est None. Ne
-           modifie rien.
-    """
-    if duree_s is None:
-        return "-"
-    ms = duree_s * 1000
-    if ms < 1:
-        texte = f"{ms:.2f} ms"
-    elif ms < 10:
-        texte = f"{ms:.1f} ms"
-    else:
-        texte = f"{ms:.0f} ms"
-    if ecart is None:
-        return f"{texte} (-)"
-    return f"{texte} ({ecart * 100:+.0f} %)"
 
 
 class MoniteurApp(App):
