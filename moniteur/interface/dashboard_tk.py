@@ -1,9 +1,9 @@
-"""Dashboard passif en Tkinter : un tableau des sites sur une fenêtre.
+"""Dashboard en Tkinter : un tableau des sites sur une fenêtre.
 
-La fenêtre ne reçoit aucune action de l'utilisatrice : elle affiche l'état
-des sites sur un écran secondaire (ENF-05). La vue ne contient aucune
-logique : elle montre les lignes que lui donne son présentateur
-(voir presentateur_dashboard).
+La fenêtre affiche l'état des sites sur un écran secondaire (ENF-05) et
+offre deux boutons pour lancer des tests (EF-03.1, EF-03.4). La vue ne
+contient aucune logique : elle montre les lignes que lui donne son
+présentateur et lui transmet les clics (voir presentateur_dashboard).
 """
 
 import ctypes
@@ -16,6 +16,7 @@ from tkinter import ttk
 
 from moniteur.domaine.configuration_tests import ConfigurationTests
 from moniteur.domaine.registre_sites import RegistreSites
+from moniteur.domaine.testeur import Testeur
 from moniteur.interface.presentateur_dashboard import (
     COLONNES,
     JAUNE,
@@ -62,9 +63,10 @@ def couper_crochet_saisie() -> None:
 class VueDashboardTk:
     """Fenêtre Tkinter qui affiche le tableau des sites, sans le calculer.
 
-    INVARIANT : la fenêtre n'a ni bouton ni champ de saisie ; seul le
-    fil d'exécution qui a créé la vue (celui de boucler) touche aux
-    éléments Tkinter. Les autres fils passent par afficher.
+    INVARIANT : la fenêtre n'a que deux boutons de test et aucun champ de
+    saisie ; seul le fil d'exécution qui a créé la vue (celui de
+    boucler) touche aux éléments Tkinter. Les autres fils passent par
+    afficher et afficher_message.
     """
 
     def __init__(self, titre: str) -> None:
@@ -85,7 +87,7 @@ class VueDashboardTk:
         style.configure("Treeview.Heading", font=("TkDefaultFont", 16, "bold"))
         self.__tableau = ttk.Treeview(
             self.__racine, columns=COLONNES, show="headings",
-            selectmode="none",
+            selectmode="browse",
         )
         for colonne in COLONNES:
             self.__tableau.heading(colonne, text=colonne)
@@ -95,10 +97,54 @@ class VueDashboardTk:
                 couleur, background=fond, foreground="black"
             )
         self.__tableau.pack(fill="both", expand=True)
+        self.__bouton_site = ttk.Button(
+            self.__racine, text="Tester le site sélectionné"
+        )
+        self.__bouton_tous = ttk.Button(
+            self.__racine, text="Tester tous les sites"
+        )
+        self.__message = tk.StringVar()
+        barre = ttk.Frame(self.__racine)
+        self.__bouton_site.pack(in_=barre, side="left", padx=8, pady=8)
+        self.__bouton_tous.pack(in_=barre, side="left", pady=8)
+        ttk.Label(barre, textvariable=self.__message).pack(
+            side="left", padx=16
+        )
+        barre.pack(fill="x")
+        self.__messages: queue.Queue[str] = queue.Queue()
         self.__a_afficher: queue.Queue[tuple[LigneDashboard, ...]] = (
             queue.Queue()
         )
         self.__arret = threading.Event()
+
+    def definir_actions(
+        self,
+        tester_site: Callable[[str | None], None],
+        tester_tous: Callable[[], None],
+    ) -> None:
+        """Relie les deux boutons aux demandes de test du présentateur.
+
+        PRE : aucune.
+        POST : « Tester le site sélectionné » appelle tester_site avec le
+               nom du site sélectionné dans le tableau (None si aucun) ;
+               « Tester tous les sites » appelle tester_tous. Les deux
+               sont appelées dans le fil de la fenêtre et doivent rendre
+               la main tout de suite.
+        """
+        self.__bouton_site.configure(
+            command=lambda: tester_site(self.__nom_selectionne())
+        )
+        self.__bouton_tous.configure(command=tester_tous)
+
+    def afficher_message(self, texte: str) -> None:
+        """Demande l'affichage d'un message, depuis n'importe quel fil.
+
+        PRE : aucune.
+        POST : texte sera affiché sous le tableau à la prochaine lecture
+               (au plus INTERVALLE_LECTURE_MS plus tard), à la place du
+               message précédent. Ne touche pas à Tkinter.
+        """
+        self.__messages.put(texte)
 
     def afficher(self, lignes: tuple[LigneDashboard, ...]) -> None:
         """Demande l'affichage de ces lignes, depuis n'importe quel fil.
@@ -145,6 +191,8 @@ class VueDashboardTk:
             lignes = self.__a_afficher.get()
         if lignes is not None:
             self.__dessiner(lignes)
+        while not self.__messages.empty():
+            self.__message.set(self.__messages.get())
         self.__racine.after(INTERVALLE_LECTURE_MS, self.__lire)
 
     def __reveiller(
@@ -157,17 +205,32 @@ class VueDashboardTk:
             lambda: self.__reveiller(rappel_reveil, intervalle_s),
         )
 
+    def __nom_selectionne(self) -> str | None:
+        """Renvoie le nom du site sélectionné, ou None s'il n'y en a pas."""
+        selection = self.__tableau.selection()
+        if len(selection) == 0:
+            return None
+        return str(self.__tableau.item(selection[0])["values"][0])
+
     def __dessiner(self, lignes: tuple[LigneDashboard, ...]) -> None:
-        """Remplace le contenu du tableau par ces lignes."""
+        """Remplace le contenu du tableau par ces lignes.
+
+        La sélection est conservée : la ligne du même site est
+        sélectionnée de nouveau.
+        """
+        nom_selectionne = self.__nom_selectionne()
         self.__tableau.delete(*self.__tableau.get_children())
         for ligne in lignes:
-            self.__tableau.insert(
+            ligne_tableau = self.__tableau.insert(
                 "", "end", values=ligne.cellules, tags=(ligne.couleur,)
             )
+            if ligne.cellules[0] == nom_selectionne:
+                self.__tableau.selection_set(ligne_tableau)
 
 
 def lancer(
     registre: RegistreSites,
+    testeurs: list[Testeur],
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
     arret: threading.Event,
@@ -182,19 +245,22 @@ def lancer(
     texte avant que la fenêtre existe (voir couper_crochet_saisie).
 
     PRE : doit être appelée depuis le fil d'exécution principal (exigence
-          de Tkinter).
+          de Tkinter) ; config.timeout_s > 0.
     POST : affiche une fenêtre qui montre l'état des sites (EF-02.1) et
            se rafraîchit à chaque changement du registre (EF-02.3) ainsi
-           que toutes les INTERVALLE_REVEIL_S secondes. Ne rend la main
-           que lorsque l'utilisatrice ferme la fenêtre ou que arret est
-           déclenché. Ne modifie pas
-           registre.
+           que toutes les INTERVALLE_REVEIL_S secondes. Ses boutons
+           lancent des batteries de tests manuelles (EF-03.1, EF-03.4)
+           avec testeurs. Ne rend la main que lorsque l'utilisatrice
+           ferme la fenêtre ou que arret est déclenché. Modifie les
+           sites testés (nouvelles batteries).
            Exception tkinter.TclError : si aucun affichage graphique
            n'est disponible.
     """
     vue = VueDashboardTk("Surveillance des sites")
     presentateur = PresentateurDashboard(
-        registre, vue.afficher, config, horloge
+        registre, testeurs, vue.afficher, vue.afficher_message, config,
+        horloge,
     )
+    vue.definir_actions(presentateur.tester_site, presentateur.tester_tous)
     apres_ouverture()
     vue.boucler(presentateur.rafraichir, INTERVALLE_REVEIL_S, arret)

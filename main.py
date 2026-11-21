@@ -6,8 +6,9 @@ l'interface choisie en ligne de commande :
     python main.py --interface simple   (valeur par défaut)
     python main.py --interface textual
 
-L'option --dashboard ouvre en plus une fenêtre passive (Tkinter) qui
-affiche l'état des sites ; elle se combine avec l'interface simple.
+L'option --dashboard ouvre en plus une fenêtre (Tkinter) qui
+affiche l'état des sites et permet de lancer des tests ; elle se combine
+avec l'interface simple.
 L'option --demo ajoute au registre des sites d'essai, pour tester
 l'application sans les saisir (voir docs/verification-manuelle.md).
 """
@@ -77,7 +78,7 @@ def lire_arguments() -> argparse.Namespace:
     analyseur.add_argument(
         "--dashboard",
         action="store_true",
-        help="ouvre le dashboard passif (avec l'interface simple)",
+        help="ouvre le dashboard (avec l'interface simple)",
     )
     arguments = analyseur.parse_args()
     if arguments.dashboard and arguments.interface != "simple":
@@ -104,7 +105,7 @@ def lancer_avec_dashboard(
     testeurs: list[Testeur],
     config: ConfigurationTests,
 ) -> None:
-    """Lance l'interface simple et le dashboard passif en même temps.
+    """Lance l'interface simple et le dashboard en même temps.
 
     Tkinter exige le fil d'exécution principal : le dashboard y tourne et
     l'interface simple tourne dans un fil secondaire. Les deux
@@ -141,7 +142,7 @@ def lancer_avec_dashboard(
         threading.Thread(target=lancer_tui, daemon=True).start()
 
     dashboard_tk.lancer(
-        registre, config, datetime.now, arret, demarrer_tui
+        registre, testeurs, config, datetime.now, arret, demarrer_tui
     )
 
 
@@ -153,7 +154,7 @@ def main() -> None:
            (TIMEOUT_S, FENETRE_PERFORMANCE_MIN) et un registre vide,
            auquel elle ajoute les sites d'essai si --demo est présent.
            Lance ensuite l'interface choisie avec l'horloge système, et le
-           dashboard passif si --dashboard est présent (voir
+           dashboard si --dashboard est présent (voir
            lancer_avec_dashboard). Ne rend la main que lorsque
            l'utilisatrice quitte.
            Exception SystemExit : si les arguments sont invalides ou si
