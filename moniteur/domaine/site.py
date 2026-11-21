@@ -36,7 +36,10 @@ class Site:
     - deux pages du site n'ont jamais le même nom (casse ignorée,
       EF-01.4) ni la même URI (EF-01.6) ;
     - l'historique contient les batteries dans l'ordre de
-      leur lancement.
+      leur lancement ;
+    - les rappels abonnés sont appelés après chaque changement d'état
+      du site (modification, pages, batterie), dans l'ordre de leur
+      abonnement.
     """
 
     def __init__(self, nom: str, uri_principale: str) -> None:
@@ -59,6 +62,23 @@ class Site:
             Page(NOM_PAGE_PRINCIPALE, uri_principale)
         ]
         self.__historique: list[BatterieTests] = []
+        self.__observateurs: list[Callable[[], None]] = []
+
+    def abonner(self, rappel: Callable[[], None]) -> None:
+        """Abonne un rappel aux changements d'état du site (patron Observer).
+
+        PRE : aucune.
+        POST : rappel est ajouté à la fin des abonnés ; il sera appelé,
+               sans argument, dans le fil d'exécution de l'appelant,
+               après chaque modification du site, ajout ou suppression
+               de page, et batterie lancée. Rien d'autre n'est modifié.
+        """
+        self.__observateurs.append(rappel)
+
+    def __notifier(self) -> None:
+        """Appelle chaque rappel abonné, une fois l'état cohérent."""
+        for rappel in tuple(self.__observateurs):
+            rappel()
 
     @property
     def nom(self) -> str:
@@ -110,6 +130,7 @@ class Site:
         self.__nom = nom
         self.__uri_principale = uri
         self.__pages[0]._changer_uri(uri)
+        self.__notifier()
 
     def __valider(self, nom: str, uri_principale: str) -> tuple[str, str]:
         """Renvoie le nom et l'URI principale nettoyés, ou refuse.
@@ -168,6 +189,7 @@ class Site:
                     f"{existante.uri}."
                 )
         self.__pages.append(page)
+        self.__notifier()
         return page
 
     def supprimer_page(self, nom: str) -> None:
@@ -192,6 +214,7 @@ class Site:
                 "La page principale ne peut pas être supprimée."
             )
         self.__pages.remove(page)
+        self.__notifier()
 
     def __chercher_page(self, nom: str) -> Page | None:
         """Renvoie la page qui porte ce nom, ou None si elle n'existe pas."""
@@ -456,6 +479,7 @@ class Site:
             )
             batterie.ajouter(mesures)
         self.__historique.append(batterie)
+        self.__notifier()
         return batterie
 
     def __a_un_echec(

@@ -1,5 +1,7 @@
 """Registre des sites : point d'entrée unique du domaine."""
 
+from collections.abc import Callable
+
 from moniteur.domaine.site import Site
 
 
@@ -12,7 +14,9 @@ class RegistreSites:
 
     INVARIANT : deux sites du registre ne portent jamais le même nom,
     à la casse près ; les sites sont conservés dans l'ordre de leur
-    ajout.
+    ajout ;
+    les rappels abonnés sont appelés après chaque changement d'état du
+    registre ou de l'un de ses sites (patron Observer).
     """
 
     def __init__(self) -> None:
@@ -22,6 +26,26 @@ class RegistreSites:
         POST : le registre est créé, sans aucun site.
         """
         self.__sites: list[Site] = []
+        self.__observateurs: list[Callable[[], None]] = []
+
+    def abonner(self, rappel: Callable[[], None]) -> None:
+        """Abonne un rappel aux changements d'état du registre (EF-02.3).
+
+        Le registre relaie ses propres changements (ajout d'un site) et
+        ceux de ses sites (modification, pages, batteries de tests).
+
+        PRE : aucune.
+        POST : rappel est ajouté à la fin des abonnés ; il sera appelé,
+               sans argument, dans le fil d'exécution de l'appelant,
+               après chaque changement. Un refus métier (ValueError) ne
+               déclenche aucun appel. Rien d'autre n'est modifié.
+        """
+        self.__observateurs.append(rappel)
+
+    def __notifier(self) -> None:
+        """Appelle chaque rappel abonné, une fois l'état cohérent."""
+        for rappel in tuple(self.__observateurs):
+            rappel()
 
     @property
     def sites(self) -> tuple[Site, ...]:
@@ -52,7 +76,9 @@ class RegistreSites:
             raise ValueError(
                 f"Un site nommé « {existant.nom} » existe déjà."
             )
+        site.abonner(self.__notifier)
         self.__sites.append(site)
+        self.__notifier()
         return site
 
     def modifier_site(
@@ -281,6 +307,58 @@ if __name__ == "__main__":
     print("Scénario : modification d'un site inconnu")
     attendu = "ValueError"
     obtenu = essayer_modification("Inconnu", "Nouveau", "nouveau.be")
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    # Patron Observer : un simple compteur tient lieu de vue (EF-02.3).
+    registre_obs = RegistreSites()
+    notifications: list[int] = []
+    registre_obs.abonner(lambda: notifications.append(1))
+
+    print("Scénario : l'ajout d'un site notifie l'observateur une fois "
+          "(EF-02.3)")
+    site_obs = registre_obs.ajouter_site("ClientABC", "clientabc.be")
+    attendu = 1
+    obtenu = len(notifications)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : un refus métier ne notifie personne : l'état n'a "
+          "pas changé")
+    try:
+        registre_obs.ajouter_site("clientabc", "autre.be")
+    except ValueError:
+        pass
+    attendu = 1
+    obtenu = len(notifications)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : un test lancé directement sur le site notifie le "
+          "registre (test périodique ou manuel)")
+    site_obs.lancer_batterie(
+        [FauxTesteur()],
+        ConfigurationTests(5.0),
+        Declenchement.PERIODIQUE,
+        fausse_horloge,
+    )
+    attendu = 2
+    obtenu = len(notifications)
+    print(f"  attendu : {attendu}")
+    print(f"  obtenu  : {obtenu}")
+    print("  → OK" if obtenu == attendu else "  → ÉCHEC")
+    print("-" * 40)
+
+    print("Scénario : la modification d'un site notifie une seule fois")
+    registre_obs.modifier_site("ClientABC", "ClientDEF", "clientdef.be")
+    attendu = 3
+    obtenu = len(notifications)
     print(f"  attendu : {attendu}")
     print(f"  obtenu  : {obtenu}")
     print("  → OK" if obtenu == attendu else "  → ÉCHEC")
