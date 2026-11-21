@@ -7,6 +7,7 @@ L'écran est réaffiché après chaque action (page MVP, section 2.2) et,
 pendant la surveillance, après chaque test automatique (EF-02.3).
 """
 
+import threading
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -55,11 +56,14 @@ def lancer(
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
     frequence_min: int,
+    interruption: threading.Event | None = None,
 ) -> None:
     """Affiche les sites et le menu jusqu'à ce que l'utilisatrice quitte.
 
     registre, testeurs, config, horloge et frequence_min sont créés par
-    main.py et transmis tels quels au domaine.
+    main.py et transmis tels quels au domaine. interruption, si elle est
+    donnée, permet à un autre fil d'exécution d'arrêter la surveillance
+    (voir surveiller) ; sinon Ctrl+C s'en charge.
 
     PRE : config.timeout_s > 0.
     POST : affiche l'état des sites puis le menu après chaque action
@@ -84,7 +88,8 @@ def lancer(
                 tester_tous_les_sites(registre, testeurs, config, horloge)
             elif choix == "4":
                 surveiller(
-                    registre, testeurs, config, horloge, frequence_min
+                    registre, testeurs, config, horloge, frequence_min,
+                    interruption,
                 )
             elif choix == "5":
                 modifier_site(registre)
@@ -444,30 +449,41 @@ def surveiller(
     config: ConfigurationTests,
     horloge: Callable[[], datetime],
     frequence_min: int,
+    interruption: threading.Event | None = None,
 ) -> None:
     """Teste automatiquement les sites jusqu'à Ctrl+C (EF-03.7).
 
     Toutes les INTERVALLE_REVEIL_S secondes, teste les sites dont
     l'échéance est atteinte. Le menu n'est pas utilisable pendant la
-    surveillance.
+    surveillance. Quand le dashboard est ouvert, Ctrl+C n'arrive pas
+    dans ce fil d'exécution : un autre fil déclenche interruption.
 
     PRE : config.timeout_s > 0.
     POST : affiche l'état des sites, puis répète tester_echeances toutes
            les INTERVALLE_REVEIL_S secondes jusqu'à ce que l'utilisatrice
-           tape Ctrl+C. Affiche alors « Surveillance arrêtée. » et rend
-           la main au menu. Modifie les sites testés (nouvelles
-           batteries).
+           tape Ctrl+C ou que interruption soit déclenchée (elle est
+           alors remise à zéro, et l'arrêt est pris en compte au plus
+           tard à la fin du test en cours). Affiche alors « Surveillance
+           arrêtée. » et rend la main au menu. Modifie les sites testés
+           (nouvelles batteries).
            Exception ValueError : si testeurs est vide et qu'un site est
            testé.
     """
     print(f"Surveillance en cours : un test tous les {frequence_min} "
           "minutes par site (Ctrl+C pour arrêter).")
+    if interruption is not None:
+        interruption.clear()
     try:
         while True:
             tester_echeances(
                 registre, testeurs, config, horloge, frequence_min
             )
-            time.sleep(INTERVALLE_REVEIL_S)
+            if interruption is None:
+                time.sleep(INTERVALLE_REVEIL_S)
+            elif interruption.wait(INTERVALLE_REVEIL_S):
+                interruption.clear()
+                break
     except KeyboardInterrupt:
-        print()
-        print("Surveillance arrêtée.")
+        pass
+    print()
+    print("Surveillance arrêtée.")

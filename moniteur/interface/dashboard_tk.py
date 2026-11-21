@@ -121,20 +121,14 @@ class VueDashboardTk:
 
         PRE : aucune.
         POST : affiche la fenêtre et ne rend la main que lorsque
-               l'utilisatrice la ferme, que arret est déclenché (par
-               n'importe quel fil) ou que Ctrl+C est pressé dans le
-               terminal (le signal arrive dans le fil de la fenêtre, pas
-               dans celui de l'interface texte : il ferme donc tout le
-               programme). Appelle rappel_reveil, dans le fil de la
-               fenêtre, toutes les intervalle_s secondes.
+               l'utilisatrice la ferme ou que arret est déclenché (par
+               n'importe quel fil). Appelle rappel_reveil, dans le fil
+               de la fenêtre, toutes les intervalle_s secondes.
         """
         self.__arret = arret
         self.__lire()
         self.__reveiller(rappel_reveil, intervalle_s)
-        try:
-            self.__racine.mainloop()
-        except KeyboardInterrupt:
-            print()
+        self.__racine.mainloop()
 
     def __lire(self) -> None:
         """Affiche les dernières lignes reçues, puis se reprogramme.

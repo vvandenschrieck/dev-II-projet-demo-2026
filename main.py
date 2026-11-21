@@ -13,6 +13,7 @@ l'application sans les saisir (voir docs/verification-manuelle.md).
 """
 
 import argparse
+import signal
 import threading
 from datetime import datetime
 
@@ -109,6 +110,8 @@ def lancer_avec_dashboard(
     l'interface simple tourne dans un fil secondaire. Les deux
     interfaces ne se connaissent pas : elles partagent seulement le
     registre, qui prévient le dashboard de chaque changement (EF-02.3).
+    Python livre Ctrl+C au fil principal, celui de la fenêtre : il est
+    transmis à l'interface simple, qui arrête sa surveillance.
 
     PRE : aucune.
     POST : ne rend la main que lorsque le dashboard est fermé ou que
@@ -120,12 +123,15 @@ def lancer_avec_dashboard(
     from moniteur.interface import dashboard_tk, tui_simple
 
     arret = threading.Event()
+    interruption = threading.Event()
+    signal.signal(signal.SIGINT, lambda numero, cadre: interruption.set())
 
     def lancer_tui() -> None:
         """Lance l'interface simple, puis demande la fermeture du dashboard."""
         try:
             tui_simple.lancer(
-                registre, testeurs, config, datetime.now, FREQUENCE_MIN
+                registre, testeurs, config, datetime.now, FREQUENCE_MIN,
+                interruption,
             )
         finally:
             arret.set()
